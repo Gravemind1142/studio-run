@@ -15,13 +15,31 @@ steal focus or interrupt you, and several runs can go at once.
 - Windows 10 or 11.
 - Roblox Studio, installed and **logged in at least once** (studio-run reuses
   your saved login).
-- To build: Rust (stable, `x86_64-pc-windows-msvc`) and the Visual Studio C++
-  Build Tools.
+- To build from source: Rust (stable, `x86_64-pc-windows-msvc`) and the Visual
+  Studio C++ Build Tools.
 
 ## Install
 
+With [Foreman](https://github.com/Roblox/foreman), add it to your project's
+`foreman.toml` and run `foreman install`:
+
+```toml
+[tools]
+studio-run = { github = "Gravemind1142/studio-run", version = "0.1.0" }
+```
+
+[Rokit](https://github.com/rojo-rbx/rokit) and
+[Aftman](https://github.com/LPGhatguy/aftman) can install the same releases:
+
 ```powershell
-cargo install --path .
+rokit add Gravemind1142/studio-run
+```
+
+Each [GitHub release](https://github.com/Gravemind1142/studio-run/releases)
+also has a zip with `studio-run.exe` in it. Or build from source:
+
+```powershell
+cargo install --git https://github.com/Gravemind1142/studio-run
 ```
 
 Then check everything works:
@@ -206,13 +224,33 @@ This finds Studio and runs a test script in it to check your setup.
 
 ## Development
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute, and
+[CHANGELOG.md](CHANGELOG.md) for what changed in each release.
+
 ```powershell
 cargo test                      # unit tests
 cargo test -- --include-ignored # plus end-to-end tests against real Studio (~1 min)
 ```
 
 The end-to-end tests (`tests/studio.rs`) need Studio installed and logged in.
-They run up to three hidden Studio instances at once.
+They run up to three hidden Studio instances at once. CI can't run them (its
+runners have no logged-in Studio), so run them locally before opening a PR
+that touches the wrapper, the sandbox or the log reader.
+
+CI (`.github/workflows/ci.yml`) runs on every pull request and push to `main`:
+`cargo fmt --check`, `cargo clippy -D warnings`, the unit tests and a release
+build.
+
+### Releasing
+
+1. Bump `version` in `Cargo.toml` and commit (`Cargo.lock` updates with it).
+2. Tag and push: `git tag v0.2.0` then `git push origin v0.2.0`.
+
+`.github/workflows/release.yml` checks that the tag matches `Cargo.toml`,
+builds, and publishes a GitHub release with
+`studio-run-<version>-windows-x86_64.zip` and its SHA-256. Foreman and Rokit
+find that asset by name, so keep the naming. A tag with a suffix, like
+`v0.2.0-rc.1`, becomes a pre-release.
 
 `experiments/` holds the probe scripts used to work out what Studio's CLI can
 do. [PLAN.md](PLAN.md) records what we found and the design decisions.

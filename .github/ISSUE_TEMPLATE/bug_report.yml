@@ -1,0 +1,59 @@
+name: Bug report
+description: studio-run did something wrong or unexpected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The full studio-run command line.
+      render: powershell
+    validations:
+      required: true
+  - type: textarea
+    id: script
+    attributes:
+      label: Script
+      description: The smallest script that shows the problem, if you can share one.
+      render: lua
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: >
+        Run again with `--format jsonl --output verbose` and paste the output,
+        including the `studio-run:` lines on stderr. Remove anything private.
+      render: text
+  - type: input
+    id: studio-run-version
+    attributes:
+      label: studio-run version
+      description: Output of `studio-run --version`.
+    validations:
+      required: true
+  - type: input
+    id: studio-version
+    attributes:
+      label: Roblox Studio version
+      description: The `version-...` folder name under `%LOCALAPPDATA%\Roblox\Versions`, or the version in Studio's About dialog.
+    validations:
+      required: true
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: "`studio-run doctor` passes on this machine"
+        - label: Roblox Studio was open on this machine at the time

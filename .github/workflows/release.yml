@@ -1,0 +1,61 @@
+name: Release
+
+# Push a tag matching the version in Cargo.toml, e.g. `v0.1.0`, to publish a release.
+# Tags with a suffix (`v0.2.0-rc.1`) are published as pre-releases.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Check tag matches Cargo.toml version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages[0].version
+          if ("v$version" -ne "$env:GITHUB_REF_NAME") {
+            throw "Tag $env:GITHUB_REF_NAME does not match Cargo.toml version $version"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Unit tests
+        run: cargo test --locked
+
+      - name: Build
+        run: cargo build --locked --release --target x86_64-pc-windows-msvc
+
+      # Foreman, Rokit and Aftman pick the asset whose name contains
+      # "windows" and "x86_64", and expect a zip holding just the executable.
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $name = "studio-run-${{ steps.version.outputs.version }}-windows-x86_64.zip"
+          Compress-Archive -Path target/x86_64-pc-windows-msvc/release/studio-run.exe -DestinationPath $name
+          $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLower()
+          "$hash  $name" | Out-File -Encoding ascii "$name.sha256"
+          "asset=$name" >> $env:GITHUB_OUTPUT
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $asset = "${{ steps.package.outputs.asset }}"
+          $flags = @("--verify-tag", "--generate-notes", "--title", "$env:GITHUB_REF_NAME")
+          if ("$env:GITHUB_REF_NAME".Contains("-")) { $flags += "--prerelease" }
+          gh release create "$env:GITHUB_REF_NAME" $asset "$asset.sha256" @flags
