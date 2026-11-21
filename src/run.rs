@@ -69,7 +69,10 @@ fn run_inner(opts: &RunOptions) -> Result<i32, String> {
     let id = run_id();
     let dir = std::env::temp_dir().join("studio-run").join(&id);
     std::fs::create_dir_all(&dir).map_err(|e| format!("couldn't create {}: {e}", dir.display()))?;
-    let _cleanup = TempDir { path: dir.clone(), keep: opts.keep_temp };
+    let _cleanup = TempDir {
+        path: dir.clone(),
+        keep: opts.keep_temp,
+    };
 
     let wrapper_path = dir.join("wrapper.luau");
     let output_path = dir.join("output.log");
@@ -101,8 +104,16 @@ fn run_inner(opts: &RunOptions) -> Result<i32, String> {
             }
             args.extend(["--localPlaceFile".into(), path_arg(&abs)]);
         }
-        Target::Published { place_id, universe_id } => {
-            args.extend(["--placeId".into(), place_id.to_string(), "--universeId".into(), universe_id.to_string()]);
+        Target::Published {
+            place_id,
+            universe_id,
+        } => {
+            args.extend([
+                "--placeId".into(),
+                place_id.to_string(),
+                "--universeId".into(),
+                universe_id.to_string(),
+            ]);
         }
     }
     args.extend(opts.studio_args.iter().cloned());
@@ -112,7 +123,12 @@ fn run_inner(opts: &RunOptions) -> Result<i32, String> {
     let studio = Studio::launch(&opts.studio_exe, &args, !opts.visible)?;
     let started = Instant::now();
 
-    let mut out = Printer { format: opts.format, filter: opts.filter, asm: Assembler::default(), result: None };
+    let mut out = Printer {
+        format: opts.format,
+        filter: opts.filter,
+        asm: Assembler::default(),
+        result: None,
+    };
     let mut result_at: Option<Instant> = None;
     let mut timed_out = false;
     let mut killed_after_result = false;
@@ -166,8 +182,13 @@ fn run_inner(opts: &RunOptions) -> Result<i32, String> {
     if timed_out {
         return Ok(EXIT_TIMEOUT);
     }
-    let code = studio.exit_code().map(|c| format!("{c:#x}")).unwrap_or("unknown".into());
-    note(&format!("Studio exited (code {code}) without the script reporting a result"));
+    let code = studio
+        .exit_code()
+        .map(|c| format!("{c:#x}"))
+        .unwrap_or("unknown".into());
+    note(&format!(
+        "Studio exited (code {code}) without the script reporting a result"
+    ));
     hints(&tail);
     Ok(EXIT_TOOL_ERROR)
 }
@@ -176,8 +197,14 @@ fn report_timeout(opts: &RunOptions, studio: &Studio, tail: &LogTail) {
     note(&format!("timed out after {}s", opts.timeout.as_secs()));
     let windows = studio.windows();
     if !windows.is_empty() {
-        let titles: Vec<String> = windows.iter().map(|w| format!("{:?} ({})", w.title, w.class)).collect();
-        note(&format!("Studio windows open at timeout: {}", titles.join(", ")));
+        let titles: Vec<String> = windows
+            .iter()
+            .map(|w| format!("{:?} ({})", w.title, w.class))
+            .collect();
+        note(&format!(
+            "Studio windows open at timeout: {}",
+            titles.join(", ")
+        ));
     }
     hints(tail);
 }
@@ -268,7 +295,10 @@ fn path_arg(p: &Path) -> String {
 }
 
 fn run_id() -> String {
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
     format!("run-{}-{:x}", std::process::id(), nanos)
 }
 

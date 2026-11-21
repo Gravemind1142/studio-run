@@ -11,7 +11,11 @@ use windows::core::PCWSTR;
 /// `%LOCALAPPDATA%\Roblox\Versions`.
 pub fn studio_exe(explicit: Option<PathBuf>) -> Result<PathBuf, String> {
     if let Some(p) = explicit {
-        return if p.is_file() { Ok(p) } else { Err(format!("Studio not found at {}", p.display())) };
+        return if p.is_file() {
+            Ok(p)
+        } else {
+            Err(format!("Studio not found at {}", p.display()))
+        };
     }
     if let Some(p) = from_registry().filter(|p| p.is_file()) {
         return Ok(p);
@@ -75,7 +79,10 @@ mod tests {
             parse_command(r#""C:\Roblox\Versions\v1\RobloxStudioBeta.exe" %1"#),
             Some(PathBuf::from(r"C:\Roblox\Versions\v1\RobloxStudioBeta.exe"))
         );
-        assert_eq!(parse_command(r"C:\x\Studio.exe %1"), Some(PathBuf::from(r"C:\x\Studio.exe")));
+        assert_eq!(
+            parse_command(r"C:\x\Studio.exe %1"),
+            Some(PathBuf::from(r"C:\x\Studio.exe"))
+        );
         assert_eq!(parse_command(""), None);
     }
 }

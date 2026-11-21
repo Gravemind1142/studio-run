@@ -32,8 +32,13 @@ impl Studio {
     /// Start `exe args...`. With `hidden`, Studio runs on its own desktop.
     pub fn launch(exe: &Path, args: &[String], hidden: bool) -> Result<Studio, String> {
         unsafe {
-            let job = CreateJobObjectW(None, PCWSTR::null()).map_err(|e| format!("CreateJobObjectW: {e}"))?;
-            let mut studio = Studio { job, process: HANDLE::default(), desktop: None };
+            let job = CreateJobObjectW(None, PCWSTR::null())
+                .map_err(|e| format!("CreateJobObjectW: {e}"))?;
+            let mut studio = Studio {
+                job,
+                process: HANDLE::default(),
+                desktop: None,
+            };
 
             let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
             limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
@@ -45,7 +50,11 @@ impl Studio {
             )
             .map_err(|e| format!("SetInformationJobObject: {e}"))?;
 
-            let desk_name = format!("studio-run-{}-{}", std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed));
+            let desk_name = format!(
+                "studio-run-{}-{}",
+                std::process::id(),
+                COUNTER.fetch_add(1, Ordering::Relaxed)
+            );
             let mut desk_path = wide(&format!("WinSta0\\{desk_name}"));
             if hidden {
                 let name = wide(&desk_name);
@@ -179,7 +188,10 @@ impl Studio {
             }
         }
         let n = (buf[0] >> 32) as usize; // NumberOfProcessIdsInList
-        buf[1..1 + n.min(buf.len() - 1)].iter().map(|&p| p as u32).collect()
+        buf[1..1 + n.min(buf.len() - 1)]
+            .iter()
+            .map(|&p| p as u32)
+            .collect()
     }
 }
 

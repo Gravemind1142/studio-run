@@ -22,7 +22,10 @@ struct Output {
 
 impl Output {
     fn events(&self) -> Vec<Value> {
-        self.stdout.lines().map(|l| serde_json::from_str(l).expect("jsonl line")).collect()
+        self.stdout
+            .lines()
+            .map(|l| serde_json::from_str(l).expect("jsonl line"))
+            .collect()
     }
     fn script_output(&self, level: &str) -> Vec<String> {
         self.events()
@@ -34,7 +37,9 @@ impl Output {
 }
 
 fn fixture(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(name)
 }
 
 fn studio_run(args: &[&str]) -> Output {
@@ -45,7 +50,10 @@ fn studio_run(args: &[&str]) -> Output {
         }
         *used += 1;
     }
-    let out = Command::new(env!("CARGO_BIN_EXE_studio-run")).args(args).output().expect("spawn studio-run");
+    let out = Command::new(env!("CARGO_BIN_EXE_studio-run"))
+        .args(args)
+        .output()
+        .expect("spawn studio-run");
     *SLOTS.lock().unwrap() -= 1;
     FREED.notify_one();
     let o = Output {
@@ -53,7 +61,10 @@ fn studio_run(args: &[&str]) -> Output {
         stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
     };
-    eprintln!("--- studio-run {args:?} -> {}\n{}\n{}", o.code, o.stdout, o.stderr);
+    eprintln!(
+        "--- studio-run {args:?} -> {}\n{}\n{}",
+        o.code, o.stdout, o.stderr
+    );
     o
 }
 
@@ -125,9 +136,17 @@ fn spawned_thread_errors_are_attributed_once() {
     let ev = o.events();
     let async_errors: Vec<_> = ev.iter().filter(|e| e["async"] == true).collect();
     assert_eq!(async_errors.len(), 1, "{async_errors:?}");
-    assert!(async_errors[0]["message"].as_str().unwrap().contains("async_error.luau:2: async boom"));
+    assert!(
+        async_errors[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("async_error.luau:2: async boom")
+    );
     // Not reported a second time as `other`.
-    assert!(!ev.iter().any(|e| e["source"] == "other" && e["message"].as_str().unwrap_or("").contains("async boom")));
+    assert!(
+        !ev.iter().any(|e| e["source"] == "other"
+            && e["message"].as_str().unwrap_or("").contains("async boom"))
+    );
     assert_eq!(o.script_output("print"), ["main done"]);
 }
 
@@ -144,13 +163,19 @@ fn long_messages_survive_studio_line_limits() {
 #[test]
 #[ignore]
 fn unicode_round_trips() {
-    assert_eq!(run_jsonl("unicode.luau", &[]).script_output("print"), ["héllo ✓"]);
+    assert_eq!(
+        run_jsonl("unicode.luau", &[]).script_output("print"),
+        ["héllo ✓"]
+    );
 }
 
 #[test]
 #[ignore]
 fn bom_is_ignored() {
-    assert_eq!(run_jsonl("bom.luau", &[]).script_output("print"), ["bom ok"]);
+    assert_eq!(
+        run_jsonl("bom.luau", &[]).script_output("print"),
+        ["bom ok"]
+    );
 }
 
 #[test]
@@ -159,7 +184,11 @@ fn no_capture_reports_prints_as_other() {
     let o = run_jsonl("print_warn.luau", &["--no-capture"]);
     assert_eq!(o.code, 0);
     assert!(o.script_output("print").is_empty());
-    assert!(o.events().iter().any(|e| e["source"] == "other" && e["message"] == "hello 1 true"));
+    assert!(
+        o.events()
+            .iter()
+            .any(|e| e["source"] == "other" && e["message"] == "hello 1 true")
+    );
 }
 
 #[test]
@@ -170,20 +199,33 @@ fn place_file_with_real_require() {
     assert_eq!(o.code, 1); // Greeter.boom() errors
     assert_eq!(o.script_output("print"), ["hi tests"]);
     // The module uses the real print, so its output is `other`.
-    assert!(o.events().iter().any(|e| e["source"] == "other" && e["message"] == "Greeter.greet says hi to tests"));
+    assert!(
+        o.events()
+            .iter()
+            .any(|e| e["source"] == "other" && e["message"] == "Greeter.greet says hi to tests")
+    );
 }
 
 #[test]
 #[ignore]
 fn trace_modules_attributes_module_output() {
     let place = fixture("modules.rbxlx");
-    let o = run_jsonl("modules.luau", &["--place", place.to_str().unwrap(), "--trace-modules"]);
+    let o = run_jsonl(
+        "modules.luau",
+        &["--place", place.to_str().unwrap(), "--trace-modules"],
+    );
     assert_eq!(o.code, 1);
     assert_eq!(
         o.script_output("print"),
-        ["Greeter top-level print", "Greeter.greet says hi to tests", "hi tests"]
+        [
+            "Greeter top-level print",
+            "Greeter.greet says hi to tests",
+            "hi tests"
+        ]
     );
-    assert!(o.script_output("error")[0].starts_with("ReplicatedStorage.Greeter:8: Greeter.boom error"));
+    assert!(
+        o.script_output("error")[0].starts_with("ReplicatedStorage.Greeter:8: Greeter.boom error")
+    );
 }
 
 #[test]

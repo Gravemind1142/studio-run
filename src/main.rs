@@ -16,7 +16,10 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use run::{Format, OutputFilter, RunOptions, Target, note};
 
 #[derive(Parser)]
-#[command(version, about = "Run Luau scripts in Roblox Studio without showing its window")]
+#[command(
+    version,
+    about = "Run Luau scripts in Roblox Studio without showing its window"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -162,7 +165,10 @@ fn cmd_run(a: RunArgs) -> i32 {
         .unwrap_or_else(|| "script.luau".into());
     let target = match (a.place, a.place_id, a.universe_id) {
         (Some(p), _, _) => Target::PlaceFile(p),
-        (None, Some(place_id), Some(universe_id)) => Target::Published { place_id, universe_id },
+        (None, Some(place_id), Some(universe_id)) => Target::Published {
+            place_id,
+            universe_id,
+        },
         _ => Target::Baseplate,
     };
     run::run(&RunOptions {
@@ -200,7 +206,11 @@ fn cmd_api_dump(a: ApiDumpArgs) -> i32 {
         ApiKind::Full => "--fullApi",
         ApiKind::Luau => "--api",
     };
-    let studio = match sandbox::Studio::launch(&exe, &[flag.into(), out.to_string_lossy().into_owned()], true) {
+    let studio = match sandbox::Studio::launch(
+        &exe,
+        &[flag.into(), out.to_string_lossy().into_owned()],
+        true,
+    ) {
         Ok(s) => s,
         Err(e) => {
             note(&e);

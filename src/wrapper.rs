@@ -19,7 +19,11 @@ pub fn generate(source: &[u8], opts: &WrapperOptions) -> String {
     let source = source.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(source);
     // Replace SOURCE last, so placeholder text inside the user's code is never touched.
     TEMPLATE
-        .replacen("__SR_CHUNK__", &lua_string(format!("={}", opts.chunk_name).as_bytes()), 1)
+        .replacen(
+            "__SR_CHUNK__",
+            &lua_string(format!("={}", opts.chunk_name).as_bytes()),
+            1,
+        )
         .replacen("__SR_CAPTURE__", bool_lit(opts.capture_print), 1)
         .replacen("__SR_TRACE__", bool_lit(opts.trace_modules), 1)
         .replacen("__SR_SOURCE__", &lua_string(source), 1)
@@ -54,7 +58,11 @@ mod tests {
     use super::*;
 
     fn opts() -> WrapperOptions {
-        WrapperOptions { chunk_name: "test.luau".into(), capture_print: true, trace_modules: false }
+        WrapperOptions {
+            chunk_name: "test.luau".into(),
+            capture_print: true,
+            trace_modules: false,
+        }
     }
 
     #[test]

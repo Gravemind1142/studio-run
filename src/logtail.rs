@@ -45,7 +45,9 @@ impl LogTail {
         if self.path.is_none() {
             self.path = self.find();
         }
-        let Some(path) = &self.path else { return vec![] };
+        let Some(path) = &self.path else {
+            return vec![];
+        };
         let mut buf = Vec::new();
         let read = File::open(path).and_then(|mut f| {
             f.seek(SeekFrom::Start(self.offset))?;
@@ -73,15 +75,21 @@ impl LogTail {
         let entries = std::fs::read_dir(&self.dir).ok()?;
         for e in entries.flatten() {
             let name = e.file_name().to_string_lossy().to_string();
-            if !name.contains("Studio") || !name.ends_with(".log") || name.contains("CrashHandler") {
+            if !name.contains("Studio") || !name.ends_with(".log") || name.contains("CrashHandler")
+            {
                 continue;
             }
-            let fresh = e.metadata().and_then(|m| m.modified()).is_ok_and(|t| t >= self.since);
+            let fresh = e
+                .metadata()
+                .and_then(|m| m.modified())
+                .is_ok_and(|t| t >= self.since);
             if !fresh {
                 continue;
             }
             let mut head = vec![0u8; 16 * 1024];
-            let n = File::open(e.path()).and_then(|mut f| f.read(&mut head)).unwrap_or(0);
+            let n = File::open(e.path())
+                .and_then(|mut f| f.read(&mut head))
+                .unwrap_or(0);
             if String::from_utf8_lossy(&head[..n]).contains(&self.marker) {
                 return Some(e.path());
             }

@@ -91,7 +91,10 @@ impl Assembler {
             self.pending = Some(combined);
             None
         } else {
-            Some(Event { more: None, ..combined })
+            Some(Event {
+                more: None,
+                ..combined
+            })
         }
     }
 
