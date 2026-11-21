@@ -1,0 +1,5 @@
+task.spawn(function()
+	error("async boom")
+end)
+task.wait(0.5)
+print("main done")

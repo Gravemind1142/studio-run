@@ -1,0 +1,23 @@
+<roblox version="4">
+	<Item class="ReplicatedStorage" referent="RBX0">
+		<Properties>
+			<string name="Name">ReplicatedStorage</string>
+		</Properties>
+		<Item class="ModuleScript" referent="RBX1">
+			<Properties>
+				<string name="Name">Greeter</string>
+				<ProtectedString name="Source"><![CDATA[print("Greeter top-level print")
+local M = {}
+function M.greet(name)
+	print("Greeter.greet says hi to", name)
+	return "hi " .. name
+end
+function M.boom()
+	error("Greeter.boom error")
+end
+return M
+]]></ProtectedString>
+			</Properties>
+		</Item>
+	</Item>
+</roblox>

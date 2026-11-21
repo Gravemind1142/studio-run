@@ -1,0 +1,12 @@
+<roblox version="4">
+	<Item class="Workspace" referent="RBX0">
+		<Properties>
+			<string name="Name">Workspace</string>
+		</Properties>
+		<Item class="Part" referent="RBX1">
+			<Properties>
+				<string name="Name">MarkerPart</string>
+			</Properties>
+		</Item>
+	</Item>
+</roblox>
