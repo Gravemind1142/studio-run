@@ -24,6 +24,12 @@ First release.
 - `--trace-modules` to capture output from required ModuleScripts too.
 - `studio-run api-dump` to write Studio's API dump.
 - `studio-run doctor` to check that Studio can run a script on this machine.
+- A hidden `studio-run raw` command that launches hidden Studio with your own
+  arguments and no wrapper, for investigating Studio's behaviour.
+- [docs/studio-behavior.md](docs/studio-behavior.md), recording how Studio's
+  CLI behaves, and `tests/behavior.rs`, which re-checks it against the
+  installed Studio.
+- Release builds for Windows x86_64, installable with Foreman, Rokit or Aftman.
 
 [Unreleased]: https://github.com/Gravemind1142/studio-run/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/Gravemind1142/studio-run/releases/tag/v0.1.0

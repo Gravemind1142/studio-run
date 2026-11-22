@@ -1,26 +1,19 @@
 //! End-to-end tests against a real Roblox Studio install.
 //!
 //! They need Studio installed and logged in, take ~10s each, and are ignored
-//! by default. Run them with: `cargo test -- --ignored`
+//! by default. Run them with: `cargo test --test studio -- --ignored`
 
-use std::path::PathBuf;
-use std::process::Command;
-use std::sync::{Condvar, Mutex};
+mod common;
 
+use common::{Output, fixture, studio_run};
 use serde_json::Value;
 
-/// At most this many Studio instances at once.
-const MAX_PARALLEL: usize = 3;
-static SLOTS: Mutex<usize> = Mutex::new(0);
-static FREED: Condvar = Condvar::new();
-
-struct Output {
-    code: i32,
-    stdout: String,
-    stderr: String,
+trait Events {
+    fn events(&self) -> Vec<Value>;
+    fn script_output(&self, level: &str) -> Vec<String>;
 }
 
-impl Output {
+impl Events for Output {
     fn events(&self) -> Vec<Value> {
         self.stdout
             .lines()
@@ -34,38 +27,6 @@ impl Output {
             .map(|e| e["message"].as_str().unwrap_or("").to_string())
             .collect()
     }
-}
-
-fn fixture(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures")
-        .join(name)
-}
-
-fn studio_run(args: &[&str]) -> Output {
-    {
-        let mut used = SLOTS.lock().unwrap();
-        while *used >= MAX_PARALLEL {
-            used = FREED.wait(used).unwrap();
-        }
-        *used += 1;
-    }
-    let out = Command::new(env!("CARGO_BIN_EXE_studio-run"))
-        .args(args)
-        .output()
-        .expect("spawn studio-run");
-    *SLOTS.lock().unwrap() -= 1;
-    FREED.notify_one();
-    let o = Output {
-        code: out.status.code().unwrap_or(-1),
-        stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
-        stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
-    };
-    eprintln!(
-        "--- studio-run {args:?} -> {}\n{}\n{}",
-        o.code, o.stdout, o.stderr
-    );
-    o
 }
 
 fn run_jsonl(script: &str, extra: &[&str]) -> Output {

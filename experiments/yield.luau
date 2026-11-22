@@ -1,8 +1,0 @@
-print("start", os.clock())
-task.wait(3)
-print("after task.wait(3)", os.clock())
-task.spawn(function()
-	task.wait(2)
-	print("from spawned thread after 2 more seconds")
-end)
-print("main chunk done")

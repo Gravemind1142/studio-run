@@ -16,8 +16,8 @@ cargo run -- doctor
 ## Tests
 
 ```powershell
-cargo test                      # unit tests
-cargo test -- --include-ignored # plus end-to-end tests against real Studio (~1 min)
+cargo test                                # unit tests
+cargo test --test studio -- --ignored     # end-to-end tests against real Studio (a few minutes)
 ```
 
 CI runs formatting, clippy, the unit tests and a release build. It **can't**
@@ -36,16 +36,26 @@ cargo clippy --all-targets -- -D warnings
 
 ## Finding out what Studio does
 
-Studio's CLI is mostly undocumented. `experiments/` holds the probe scripts we
-used, and [PLAN.md](PLAN.md) records the findings. If you find out something
-new, such as a behaviour change in a Studio update, add it to the findings
-table along with the Studio version you tested.
-
-Run a probe with:
+Studio's CLI is mostly undocumented.
+[docs/studio-behavior.md](docs/studio-behavior.md) records what we found out
+and how, and `tests/behavior.rs` re-checks each finding:
 
 ```powershell
-cargo run -- run experiments/probe.luau --no-capture --output verbose
+cargo test --test behavior -- --ignored --nocapture
 ```
+
+If a check fails after a Studio update, Studio has changed: update the
+finding, the Studio version it was checked against, and studio-run if it
+relied on the old behaviour. To investigate something new, write a probe in
+`tests/probes/` and run it on its own, with or without the wrapper:
+
+```powershell
+cargo run -- run tests/probes/capabilities.luau --no-capture --output verbose
+cargo run -- raw -- --task RunScript --runScriptFile C:\full\path\probe.luau --outputFile C:\full\path\out.log --quitAfterExecution
+```
+
+Once it tells you something studio-run depends on, add a check for it to
+`tests/behavior.rs` and a row to the findings.
 
 ## Pull requests
 

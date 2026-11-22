@@ -228,8 +228,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute, and
 [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ```powershell
-cargo test                      # unit tests
-cargo test -- --include-ignored # plus end-to-end tests against real Studio (~1 min)
+cargo test                                # unit tests
+cargo test --test studio -- --ignored     # end-to-end tests against real Studio (a few minutes)
+cargo test --test behavior -- --ignored   # check Studio still behaves as documented (~2 min)
 ```
 
 The end-to-end tests (`tests/studio.rs`) need Studio installed and logged in.
@@ -252,5 +253,9 @@ builds, and publishes a GitHub release with
 find that asset by name, so keep the naming. A tag with a suffix, like
 `v0.2.0-rc.1`, becomes a pre-release.
 
-`experiments/` holds the probe scripts used to work out what Studio's CLI can
-do. [PLAN.md](PLAN.md) records what we found and the design decisions.
+### How Studio behaves
+
+Studio's CLI is mostly undocumented. [docs/studio-behavior.md](docs/studio-behavior.md)
+records what we found out about it and how, and [docs/design.md](docs/design.md)
+explains how studio-run works around it. `tests/behavior.rs` re-checks each
+finding against the installed Studio; run it after a Studio update.

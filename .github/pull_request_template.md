@@ -5,6 +5,6 @@
 ## Checklist
 
 - [ ] `cargo fmt` and `cargo clippy --all-targets -- -D warnings` are clean
-- [ ] End-to-end tests pass locally (`cargo test -- --include-ignored`), or this change doesn't touch the wrapper, event parsing, log reader, launching or run loop
+- [ ] End-to-end tests pass locally (`cargo test --test studio -- --ignored`), or this change doesn't touch the wrapper, event parsing, log reader, launching or run loop
 - [ ] `CHANGELOG.md` updated, if users would notice
 - [ ] `README.md` updated, if options, output or exit codes changed

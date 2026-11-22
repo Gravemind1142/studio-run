@@ -33,6 +33,10 @@ enum Command {
     ApiDump(ApiDumpArgs),
     /// Check that Studio can be found and can run a script.
     Doctor(StudioArg),
+    /// Launch hidden Studio with your own arguments and no wrapper. Used by
+    /// the behaviour checks in tests/behavior.rs.
+    #[command(hide = true)]
+    Raw(RawArgs),
 }
 
 #[derive(Args)]
@@ -119,6 +123,24 @@ struct ApiDumpArgs {
     studio: StudioArg,
 }
 
+#[derive(Args)]
+struct RawArgs {
+    /// Seconds before Studio is killed (exit code 124).
+    #[arg(long, default_value_t = 120)]
+    timeout: u64,
+
+    /// Show Studio's window on your desktop.
+    #[arg(long)]
+    visible: bool,
+
+    #[command(flatten)]
+    studio: StudioArg,
+
+    /// Arguments passed to Studio as-is.
+    #[arg(last = true)]
+    studio_args: Vec<String>,
+}
+
 #[derive(Clone, Copy, ValueEnum)]
 enum ApiKind {
     /// Full API, V2 schema (`--apiV2`).
@@ -135,6 +157,7 @@ fn main() {
         Command::Run(a) => cmd_run(a),
         Command::ApiDump(a) => cmd_api_dump(a),
         Command::Doctor(a) => cmd_doctor(a),
+        Command::Raw(a) => cmd_raw(a),
     };
     std::process::exit(code);
 }
@@ -264,4 +287,35 @@ fn cmd_doctor(a: StudioArg) -> i32 {
         println!("FAILED (exit code {code}) after {secs:.1}s; see the messages above.");
     }
     code
+}
+
+/// Exit code: Studio's own, or 124 if it was still running at the timeout.
+fn cmd_raw(a: RawArgs) -> i32 {
+    let exe = match studio_or_exit(a.studio) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    let started = Instant::now();
+    let studio = match sandbox::Studio::launch(&exe, &a.studio_args, !a.visible) {
+        Ok(s) => s,
+        Err(e) => {
+            note(&e);
+            return run::EXIT_TOOL_ERROR;
+        }
+    };
+    let secs = || started.elapsed().as_secs_f32();
+    if !studio.wait((a.timeout * 1000) as u32) {
+        note(&format!("Studio was still running after {:.1}s", secs()));
+        for w in studio.windows() {
+            note(&format!("open window: [{}] {}", w.class, w.title));
+        }
+        studio.kill();
+        return run::EXIT_TIMEOUT;
+    }
+    let code = studio.exit_code().unwrap_or(u32::MAX);
+    note(&format!(
+        "Studio exited with code {code} after {:.1}s",
+        secs()
+    ));
+    code as i32
 }
