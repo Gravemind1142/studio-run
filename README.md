@@ -259,3 +259,7 @@ Studio's CLI is mostly undocumented. [docs/studio-behavior.md](docs/studio-behav
 records what we found out about it and how, and [docs/design.md](docs/design.md)
 explains how studio-run works around it. `tests/behavior.rs` re-checks each
 finding against the installed Studio; run it after a Studio update.
+
+## License
+
+[MIT](LICENSE)

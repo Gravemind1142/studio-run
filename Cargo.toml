@@ -3,6 +3,7 @@ name = "studio-run"
 version = "0.1.0"
 edition = "2024"
 description = "Run Luau scripts in Roblox Studio on Windows without Studio appearing on screen"
+license = "MIT"
 repository = "https://github.com/Gravemind1142/studio-run"
 readme = "README.md"
 keywords = ["roblox", "roblox-studio", "luau", "cli", "headless"]
