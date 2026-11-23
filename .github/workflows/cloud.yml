@@ -10,9 +10,8 @@ name: Cloud tests
 # the real API.
 on:
   schedule:
-    # Mondays 17:07 UTC: 9:07am Pacific in winter, 10:07am in summer (cron is
-    # always UTC). Off the hour, when GitHub can delay or drop scheduled runs.
-    - cron: "7 17 * * 1"
+    # Mondays 17:00 UTC: 9am Pacific in winter, 10am in summer (cron is always UTC).
+    - cron: "0 17 * * 1"
   workflow_dispatch:
 
 permissions:
