@@ -453,3 +453,11 @@ fn module_environments() {
     assert_eq!(r["patchAfterRequireWorks"], true, "{r}");
     assert_eq!(r["ownLoaderCapturesTopLevel"], true, "{r}");
 }
+
+#[test]
+#[ignore]
+fn structured_logging() {
+    let r = probe("structured_logs.luau", &[]);
+    eprintln!("structured_logs: {r}");
+    common::structured_logs::check(&r);
+}

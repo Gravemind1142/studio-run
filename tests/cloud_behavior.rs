@@ -411,3 +411,26 @@ fn place_modules() {
                  "stack": "ReplicatedStorage.Async, line 2\n" }])
     );
 }
+
+/// Structured logging (LogService:Info/Warn/... with a context table, Loggers).
+#[test]
+#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+fn structured_logs() {
+    let task = run_task(&probe("structured_logs.luau"), &TaskOptions::default());
+    report("structured_logs", &summary(&task));
+    common::structured_logs::check(result(&task));
+
+    // The task's own logs keep the message and level, but not the context.
+    let slog: Vec<Value> = messages(&task)
+        .into_iter()
+        .filter(|m| m["message"].as_str().is_some_and(|s| s.starts_with("SLOG")))
+        .collect();
+    report("structured_logs messages", &json!(slog));
+    assert_eq!(slog.len(), 14, "{slog:?}");
+    for m in &slog {
+        let keys: Vec<&String> = m.as_object().unwrap().keys().collect();
+        assert_eq!(keys, ["createTime", "message", "messageType"], "{m}");
+    }
+    let info = slog.iter().find(|m| m["message"] == "SLOG info").unwrap();
+    assert_eq!(info["messageType"], "INFO");
+}
