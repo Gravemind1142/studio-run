@@ -402,3 +402,69 @@ fn saved_version() {
     // A task without a version runs on the latest version, Saved or not.
     assert_eq!(result(&latest)["placeVersion"], version);
 }
+
+/// A place's own ModuleScripts can be loaded the way --trace-modules does it
+/// under --cloud (docs/design.md).
+#[test]
+#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+fn place_modules() {
+    let r = upload_place(&fixture("modules.rbxlx"), "Saved");
+    assert!(r.ok(), "upload failed: HTTP {} {}", r.status, r.body);
+    let version = r.body["versionNumber"].as_u64().expect("versionNumber");
+    let task = run_task(
+        &probe("place_modules.luau"),
+        &TaskOptions {
+            version: Some(version),
+            ..Default::default()
+        },
+    );
+    report("place_modules", &summary(&task));
+    let r = result(&task);
+
+    // A task can read the Source of a module that's part of the place.
+    assert_eq!(r["found"], true);
+    assert_eq!(r["readSource"]["ok"], true);
+    assert!(r["readSource"]["length"].as_u64().unwrap() > 0);
+
+    // Loaded under its full name, all its output is captured, top level included.
+    assert_eq!(r["fullName"], "ReplicatedStorage.Greeter");
+    assert_eq!(
+        r["load"],
+        json!({ "ok": true, "returnedTable": true,
+                "captured": ["Greeter top-level print", "Greeter.greet says hi to probe"] })
+    );
+
+    // Errors and tracebacks name it, with the module's own line numbers.
+    assert_eq!(
+        r["boom"]["err"],
+        "ReplicatedStorage.Greeter:8: Greeter.boom error"
+    );
+    let tb = r["boom"]["traceback"].as_str().unwrap();
+    assert!(
+        tb.starts_with("ReplicatedStorage.Greeter:8 function boom\n"),
+        "traceback: {tb}"
+    );
+
+    // A compile error in a module named with dots arrives through MessageOut, named.
+    assert_eq!(
+        r["compileError"]["err"],
+        "Requested module experienced an error while loading"
+    );
+    let compile_msg = "MessageError: ReplicatedStorage.Bad:1: Expected identifier when parsing expression, got '='";
+    assert!(
+        r["logged"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m == compile_msg),
+        "logged: {}",
+        r["logged"]
+    );
+
+    // Errors in threads it spawns name it in ScriptContext.Error's stack.
+    assert_eq!(
+        r["contextErrors"],
+        json!([{ "message": "ReplicatedStorage.Async:2: async boom",
+                 "stack": "ReplicatedStorage.Async, line 2\n" }])
+    );
+}

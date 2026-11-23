@@ -65,6 +65,18 @@ after the user's file, sets its `Source` to `return function(...) <source>\nend`
 | **Wrapped, top-level `export type` compiles and runs too**, as it does locally. (Recorded earlier as a compile error; it was never re-checked, and isn't one on engine 0.748.) | `export_type.luau` on both hosts. | `tests/parity.rs` |
 | **A compile error at the end of the source is reported one line later**, at the wrapper's closing `end`: `compile_error.luau:3: Expected identifier when parsing expression, got 'end'`, where Studio says `compile_error.luau:2: … got <eof>`. Errors elsewhere in the file have the file's own line numbers. | `compile_error.luau` on both hosts. | `tests/parity.rs` (an allowed difference) |
 
+### Loading the place's ModuleScripts (`--trace-modules`)
+
+`--trace-modules` loads each required ModuleScript as above: a new
+ModuleScript named after the original's full name, with the original's
+`Source` wrapped.
+
+| Finding | How we know | Check |
+|---|---|---|
+| **A task can read the `Source` of a ModuleScript that's part of the place.** | `place_modules.luau` on an uploaded `modules.rbxlx`. | `place_modules` |
+| Loaded under its full name (`ReplicatedStorage.Greeter`), with `print` replaced by `setfenv`, all of the module's output is captured, top level included. Errors and tracebacks read `ReplicatedStorage.Greeter:8`, the same as `loadstring` with that chunk name locally. | `place_modules.luau`. | `place_modules` |
+| Names with dots work everywhere the wrapper matches on them: a compile error arrives through `MessageOut` as `ReplicatedStorage.Bad:1: …`, and an error in a spawned thread reaches `ScriptContext.Error` with stack `ReplicatedStorage.Async, line 2`. | `place_modules.luau`. | `place_modules` |
+
 ### Results and errors
 
 | Finding | How we know | Check |

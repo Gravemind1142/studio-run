@@ -180,6 +180,7 @@ fn creates_polls_and_downloads_with_the_expected_requests() {
     assert!(script.starts_with("--[[studio-run cloud wrapper]]"));
     assert!(script.contains(r#"local CHUNK_NAME = "print_warn.luau""#));
     assert!(script.contains("local CAPTURE_PRINT = true"));
+    assert!(script.contains("local TRACE_MODULES = false"));
     assert!(
         script.contains(r#"careful"#),
         "the user's source is embedded"
@@ -227,17 +228,15 @@ fn options_reach_the_request() {
             "--timeout",
             "30",
             "--no-capture",
+            "--trace-modules",
         ],
     );
     assert_eq!(o.code, 0);
     let body = mock.matching("POST", "/luau-execution-session-tasks")[0].json();
     assert_eq!(body["timeout"], "30s");
-    assert!(
-        body["script"]
-            .as_str()
-            .unwrap()
-            .contains("local CAPTURE_PRINT = false")
-    );
+    let script = body["script"].as_str().unwrap();
+    assert!(script.contains("local CAPTURE_PRINT = false"));
+    assert!(script.contains("local TRACE_MODULES = true"));
 }
 
 #[test]
@@ -457,7 +456,6 @@ fn usage_errors_make_no_requests() {
     for args in [
         vec![s.as_str(), "--visible"],
         vec![s.as_str(), "--timeout", "301"],
-        vec![s.as_str(), "--trace-modules"],
         vec![s.as_str(), "--place", place.to_str().unwrap()], // no --allow-upload
     ] {
         let o = run(&mock, &args);

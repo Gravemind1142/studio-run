@@ -82,15 +82,6 @@ do
 	}
 end
 
--- 6. Reading the Source of a module that's part of the place (for --trace-modules).
-do
-	local ok, v = pcall(function()
-		local found = workspace:FindFirstChildWhichIsA("ModuleScript", true)
-		return if found then #found.Source else "no module in place"
-	end)
-	results.placeModuleSource = { ok = ok, v = v }
-end
-
 task.wait(0.2)
 results.logged = logged
 results.contextErrors = contextErrors

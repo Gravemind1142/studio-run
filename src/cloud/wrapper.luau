@@ -6,12 +6,14 @@
 -- Differences from the local wrapper (see docs/cloud-behavior.md):
 -- * Tasks have no loadstring, so the user's source is compiled as a
 --   ModuleScript named after the file, wrapped in `return function(...)`.
+--   With --trace-modules, required ModuleScripts are compiled the same way.
 -- * Events are collected and returned in the task's binary output. Each is
 --   also printed, so a task that times out still leaves them in its logs.
 
 local SOURCE = __SR_SOURCE__
 local CHUNK_NAME = __SR_CHUNK__ -- "name.luau": used in errors and tracebacks
 local CAPTURE_PRINT = __SR_CAPTURE__
+local TRACE_MODULES = __SR_TRACE__
 -- The script's first vararg (`local ctx = ...`); see README, "Script context".
 local CONTEXT = __SR_CONTEXT__
 -- Only known once the task runs: the latest version, or the one just uploaded.
@@ -25,7 +27,10 @@ local HttpService = game:GetService("HttpService")
 local LogService = game:GetService("LogService")
 local ScriptContext = game:GetService("ScriptContext")
 local realPrint = print
+local realRequire = require
 local wrapperEnv = getfenv(1)
+
+local scriptNames = { [CHUNK_NAME] = true } -- chunks whose errors are the script's
 
 ---------------------------------------------------------------------------
 -- Event output
@@ -123,7 +128,7 @@ local LEVELS = {
 
 local suppressError = {} -- errors already reported via ScriptContext.Error
 local skippingStack = false
-local compiling = false -- while requiring the user's module
+local compiling = nil -- the chunk name of the module being required, if any
 local compileMessage = nil
 
 LogService.MessageOut:Connect(function(message, messageType)
@@ -131,9 +136,9 @@ LogService.MessageOut:Connect(function(message, messageType)
 		return
 	end
 	local level = LEVELS[messageType.Name] or "info"
-	-- A compile error in the user's module only arrives here; require itself
+	-- A compile error in a module we compile only arrives here; require itself
 	-- just says the module failed to load.
-	if compiling and level == "error" and string.sub(message, 1, #CHUNK_NAME + 1) == CHUNK_NAME .. ":" then
+	if compiling and level == "error" and string.sub(message, 1, #compiling + 1) == compiling .. ":" then
 		compileMessage = message
 		return
 	end
@@ -158,8 +163,17 @@ LogService.MessageOut:Connect(function(message, messageType)
 end)
 
 -- Errors in threads the script spawned (task.spawn, connections, ...).
+local function fromScript(stack)
+	for name in scriptNames do
+		if string.find(stack, name .. ", line", 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
 ScriptContext.Error:Connect(function(message, stack, origin)
-	if origin == nil and string.find(stack, CHUNK_NAME .. ", line", 1, true) then
+	if origin == nil and fromScript(stack) then
 		suppressError[message] = true
 		emit({
 			kind = "output",
@@ -172,20 +186,90 @@ ScriptContext.Error:Connect(function(message, stack, origin)
 end)
 
 ---------------------------------------------------------------------------
--- Run
+-- Compiling and the script's environment
 ---------------------------------------------------------------------------
 
-local function makeEnv()
+-- Compile `source` as a ModuleScript named `name` (its chunk name), as the
+-- body of `function(...)` starting on the module's first line, so line
+-- numbers are the source's. Returns the function, or nil and the error.
+local function compile(name, source)
+	local module = Instance.new("ModuleScript")
+	module.Name = name
+	module.Source = "return function(...) " .. source .. "\nend"
+	compiling = name
+	compileMessage = nil
+	local loaded, fn = pcall(realRequire, module)
+	if loaded then
+		compiling = nil
+		return fn
+	end
+	-- The real message comes through MessageOut, possibly a moment later.
+	local waitUntil = os.clock() + 2
+	while compileMessage == nil and os.clock() < waitUntil do
+		task.wait()
+	end
+	compiling = nil
+	return nil, compileMessage or tostring(fn)
+end
+
+local tracedRequire
+local function makeEnv(scriptValue)
 	local env = setmetatable({}, { __index = wrapperEnv })
-	env.print = function(...)
-		emit({ kind = "output", source = "script", level = "print", message = join(...) })
+	if CAPTURE_PRINT then
+		env.print = function(...)
+			emit({ kind = "output", source = "script", level = "print", message = join(...) })
+		end
+		env.warn = function(...)
+			emit({ kind = "output", source = "script", level = "warn", message = join(...) })
+		end
 	end
-	env.warn = function(...)
-		emit({ kind = "output", source = "script", level = "warn", message = join(...) })
+	if TRACE_MODULES then
+		env.require = tracedRequire
 	end
-	env.script = nil
+	env.script = scriptValue
 	return env
 end
+
+-- Opt-in (--trace-modules): load ModuleScripts ourselves so their output and
+-- errors are attributed to them. Not the real `require`; see README. Each
+-- module is compiled under its full name, as the local wrapper's loadstring
+-- names it.
+local moduleCache = {}
+local LOADING = {}
+tracedRequire = function(target)
+	if typeof(target) ~= "Instance" or not target:IsA("ModuleScript") then
+		return realRequire(target)
+	end
+	local cached = moduleCache[target]
+	if cached == LOADING then
+		error("studio-run: cyclic require of " .. target:GetFullName(), 2)
+	elseif cached ~= nil then
+		return cached.value
+	end
+	local name = target:GetFullName()
+	local fn, err = compile(name, target.Source)
+	if not fn then
+		error(err, 0)
+	end
+	scriptNames[name] = true
+	moduleCache[target] = LOADING
+	setfenv(fn, makeEnv(target))
+	local results = table.pack(pcall(fn))
+	if not results[1] then
+		moduleCache[target] = nil
+		error(results[2], 0)
+	end
+	if results.n ~= 2 then
+		moduleCache[target] = nil
+		error("Module code did not return exactly one value: " .. name, 2)
+	end
+	moduleCache[target] = { value = results[2] }
+	return results[2]
+end
+
+---------------------------------------------------------------------------
+-- Run
+---------------------------------------------------------------------------
 
 local function exitCodeFrom(value)
 	if value == nil or value == true then
@@ -213,33 +297,14 @@ end
 
 emit({ kind = "start", chunk = CHUNK_NAME })
 
--- The source starts on the module's first line, so line numbers are the file's.
-local module = Instance.new("ModuleScript")
-module.Name = CHUNK_NAME
-module.Source = "return function(...) " .. SOURCE .. "\nend"
-
-compiling = true
-local loaded, fn = pcall(require, module)
-
 local result
-if not loaded then
-	-- The real message comes through MessageOut, possibly a moment later.
-	local waitUntil = os.clock() + 2
-	while compileMessage == nil and os.clock() < waitUntil do
-		task.wait()
-	end
-	compiling = false
-	emit({
-		kind = "output",
-		source = "script",
-		level = "error",
-		message = compileMessage or tostring(fn),
-	})
+local fn, compileErr = compile(CHUNK_NAME, SOURCE)
+if not fn then
+	emit({ kind = "output", source = "script", level = "error", message = compileErr })
 	result = { ok = false, exitCode = 1, reason = "compile" }
 else
-	compiling = false
-	if CAPTURE_PRINT then
-		setfenv(fn, makeEnv())
+	if CAPTURE_PRINT or TRACE_MODULES then
+		setfenv(fn, makeEnv(nil))
 	end
 	local packed = table.pack(xpcall(fn, function(e)
 		return { message = tostring(e), traceback = cleanTraceback(debug.traceback(nil, 2)) }
