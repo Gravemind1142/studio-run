@@ -47,6 +47,9 @@ pub struct Printer {
     asm: Assembler,
     last_seq: u64,
     pub result: Option<Event>,
+    /// The script's binary output: from `binary` events locally, or set by
+    /// the cloud host from the task's binary output.
+    pub binary: Option<Vec<u8>>,
 }
 
 impl Printer {
@@ -58,6 +61,7 @@ impl Printer {
             asm: Assembler::default(),
             last_seq: 0,
             result: None,
+            binary: None,
         }
     }
 
@@ -86,6 +90,14 @@ impl Printer {
             return;
         }
         self.last_seq = self.last_seq.max(ev.seq);
+        // The script's binary output (local host): not printed.
+        if ev.kind == "binary" {
+            match crate::binary::base64_decode(ev.message.as_deref().unwrap_or("")) {
+                Ok(data) => self.binary = Some(data),
+                Err(e) => note(&format!("ignoring malformed binary output: {e}")),
+            }
+            return;
+        }
         if ev.kind == "start" {
             let s = &self.start;
             ev.host = Some(s.host.to_string());

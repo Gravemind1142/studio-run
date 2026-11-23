@@ -8,6 +8,10 @@ All notable changes to this project are recorded here. The format follows
 
 ### Added
 
+- `--input name=<file>` (repeatable) and `--binary-output <file>`, on both
+  hosts: scripts read inputs as buffers in `ctx.inputs[name]` and set their
+  binary output with `ctx.setBinaryOutput(buf)`. Inputs are at most 100 MiB in
+  total; the output at most 8 MiB locally and 256 MiB with `--cloud`.
 - `--arg key=value` (repeatable), and a script context passed as the script's
   first vararg (`local ctx = ...`): `ctx.host` (`local` or `cloud`),
   `ctx.version`, `ctx.args` and `ctx.place` (universe, place and version

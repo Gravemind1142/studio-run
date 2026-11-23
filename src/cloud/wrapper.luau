@@ -7,21 +7,27 @@
 -- * Tasks have no loadstring, so the user's source is compiled as a
 --   ModuleScript named after the file, wrapped in `return function(...)`.
 --   With --trace-modules, required ModuleScripts are compiled the same way.
--- * Events are collected and returned in the task's binary output. Each is
---   also printed, so a task that times out still leaves them in its logs.
+-- * Events are collected and returned in the task's binary output, followed
+--   by the script's own binary output. Each event is also printed, so a task
+--   that times out still leaves them in its logs.
+-- * --input files arrive packed in the task's one binary input.
 
-local SOURCE = __SR_SOURCE__
+local TASK_ARGS = table.pack(...) -- { BinaryInput = buffer } with --input
 local CHUNK_NAME = __SR_CHUNK__ -- "name.luau": used in errors and tracebacks
 local CAPTURE_PRINT = __SR_CAPTURE__
 local TRACE_MODULES = __SR_TRACE__
+local SEND_BINARY_OUTPUT = __SR_BINARY_OUTPUT__ -- --binary-output was given
 -- The script's first vararg (`local ctx = ...`); see README, "Script context".
+-- `inputs` and `setBinaryOutput` are added below.
 local CONTEXT = __SR_CONTEXT__
--- Only known once the task runs: the latest version, or the one just uploaded.
+-- Only known once the task runs when it's the latest version.
 CONTEXT.place.version = game.PlaceVersion
+local SOURCE = __SR_SOURCE__
 
 local PROTOCOL = 1
 local SENTINEL = "@@studio" .. "-run@@"
 local BUDGET = 600 -- max JSON-encoded bytes of one message piece
+local MAX_TASK_OUTPUT = 256 * 1024 * 1024 -- a task's binary output
 
 local HttpService = game:GetService("HttpService")
 local LogService = game:GetService("LogService")
@@ -38,6 +44,7 @@ local scriptNames = { [CHUNK_NAME] = true } -- chunks whose errors are the scrip
 
 local seq = 0
 local lines = {}
+local linesBytes = 0
 
 local function send(ev)
 	seq += 1
@@ -45,6 +52,7 @@ local function send(ev)
 	ev.seq = seq
 	local line = SENTINEL .. HttpService:JSONEncode(ev)
 	table.insert(lines, line)
+	linesBytes += #line + 1
 	realPrint(line)
 end
 
@@ -184,6 +192,58 @@ ScriptContext.Error:Connect(function(message, stack, origin)
 		})
 	end
 end)
+
+---------------------------------------------------------------------------
+-- ctx.inputs and ctx.setBinaryOutput
+---------------------------------------------------------------------------
+
+-- Packed by studio-run (src/binary.rs): "SRI1", the count, then for each
+-- input its name's length, name, data's length and data (u32s, little-endian).
+local function unpackInputs(packed)
+	local inputs = {}
+	assert(buffer.readstring(packed, 0, 4) == "SRI1", "studio-run: unrecognised binary input")
+	local count = buffer.readu32(packed, 4)
+	local pos = 8
+	for _ = 1, count do
+		local nameLen = buffer.readu32(packed, pos)
+		local name = buffer.readstring(packed, pos + 4, nameLen)
+		pos += 4 + nameLen
+		local len = buffer.readu32(packed, pos)
+		local data = buffer.create(len)
+		buffer.copy(data, 0, packed, pos + 4, len)
+		pos += 4 + len
+		inputs[name] = data
+	end
+	return inputs
+end
+
+local taskInput = if type(TASK_ARGS[1]) == "table" then TASK_ARGS[1].BinaryInput else nil
+local inputs = if taskInput then unpackInputs(taskInput) else {}
+taskInput = nil
+TASK_ARGS = nil
+
+local binaryOutput = nil
+
+CONTEXT.inputs = inputs
+
+function CONTEXT.setBinaryOutput(data)
+	if type(data) == "string" then
+		data = buffer.fromstring(data)
+	elseif typeof(data) ~= "buffer" then
+		error("ctx.setBinaryOutput expects a buffer, got " .. typeof(data), 2)
+	end
+	if buffer.len(data) > MAX_TASK_OUTPUT then
+		error(
+			string.format(
+				"binary output is %d bytes; the limit is %d bytes (256 MiB) in the cloud",
+				buffer.len(data),
+				MAX_TASK_OUTPUT
+			),
+			2
+		)
+	end
+	binaryOutput = data
+end
 
 ---------------------------------------------------------------------------
 -- Compiling and the script's environment
@@ -326,9 +386,42 @@ end
 task.wait(0.1)
 task.wait(0.1)
 
+local data = if SEND_BINARY_OUTPUT then binaryOutput else nil
+-- Room for the header and the result event still to come.
+if data and 12 + linesBytes + 1024 + buffer.len(data) > MAX_TASK_OUTPUT then
+	emit({
+		kind = "output",
+		source = "script",
+		level = "error",
+		message = string.format(
+			"studio-run: the binary output (%d bytes) and the output events (%d bytes) together "
+				.. "are more than a task can return (256 MiB); the binary output was dropped",
+			buffer.len(data),
+			linesBytes
+		),
+	})
+	data = nil
+	if result.ok then
+		result = { ok = false, exitCode = 1, reason = "error" }
+	end
+end
+
 emit({ kind = "result", ok = result.ok, exitCode = result.exitCode, reason = result.reason })
 
+-- "SRB1", the events' length, the binary output's length (u32s,
+-- little-endian), the events, the binary output. Read by src/binary.rs.
+local events = table.concat(lines, "\n")
+local dataLen = if data then buffer.len(data) else 0
+local out = buffer.create(12 + #events + dataLen)
+buffer.writestring(out, 0, "SRB1")
+buffer.writeu32(out, 4, #events)
+buffer.writeu32(out, 8, dataLen)
+buffer.writestring(out, 12, events)
+if data then
+	buffer.copy(out, 12 + #events, data)
+end
+
 return {
-	BinaryOutput = buffer.fromstring(table.concat(lines, "\n")),
+	BinaryOutput = out,
 	ReturnValues = { result },
 }

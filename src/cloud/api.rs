@@ -1,5 +1,5 @@
-//! A minimal Open Cloud client: create and poll a Luau Execution task, read
-//! its logs and download its binary output.
+//! A minimal Open Cloud client: upload a task's binary input, create and poll
+//! a Luau Execution task, read its logs and download its binary output.
 //! Behaviour it relies on is in docs/cloud-behavior.md.
 
 use std::time::{Duration, Instant};
@@ -200,12 +200,14 @@ impl Client {
     }
 
     /// Creates a task on `version` (or the latest version) and returns it.
+    #[allow(clippy::too_many_arguments)]
     pub fn create_task(
         &self,
         universe_id: u64,
         place_id: u64,
         version: Option<u64>,
         script: &str,
+        binary_input: Option<&str>,
         timeout_secs: u64,
         deadline: Instant,
     ) -> Result<Value, ApiError> {
@@ -217,13 +219,51 @@ impl Client {
                 "/cloud/v2/universes/{universe_id}/places/{place_id}/luau-execution-session-tasks"
             ),
         };
-        let body = json!({
+        let mut body = json!({
             "script": script,
             "timeout": format!("{timeout_secs}s"),
             "enableBinaryOutput": true,
         });
+        if let Some(input) = binary_input {
+            body["binaryInput"] = json!(input);
+        }
         // A failed create never created a task, so retrying can't run it twice.
         Self::retrying(deadline, || self.json("POST", &path, Some(&body)))
+    }
+
+    /// Creates a binary input holding `data` and uploads it. Returns its
+    /// `path`, for `create_task`. It stays usable for 15 minutes.
+    pub fn create_binary_input(
+        &self,
+        universe_id: u64,
+        data: &[u8],
+        deadline: Instant,
+    ) -> Result<String, ApiError> {
+        let path =
+            format!("/cloud/v2/universes/{universe_id}/luau-execution-session-task-binary-inputs");
+        let body = json!({ "size": data.len() });
+        // An unused input does no harm, so creating one is safe to retry.
+        let input = Self::retrying(deadline, || self.json("POST", &path, Some(&body)))?;
+        let (Some(input_path), Some(upload)) =
+            (input["path"].as_str(), input["uploadUri"].as_str())
+        else {
+            return Err(ApiError {
+                code: "http",
+                status: None,
+                message: format!("the created binary input has no path or uploadUri: {input}"),
+                retry_after: None,
+            });
+        };
+        // The upload URL is presigned storage: no key is sent. PUT is idempotent.
+        Self::retrying(deadline, || {
+            Self::finish(
+                self.agent
+                    .put(upload)
+                    .set("Content-Type", "application/octet-stream")
+                    .send_bytes(data),
+            )
+        })?;
+        Ok(input_path.to_string())
     }
 
     /// The task's current state.
