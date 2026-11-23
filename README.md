@@ -35,7 +35,7 @@ With [Foreman](https://github.com/Roblox/foreman), add it to your project's
 
 ```toml
 [tools]
-studio-run = { github = "Gravemind1142/studio-run", version = "0.1.0" }
+studio-run = { github = "Gravemind1142/studio-run", version = "0.2.0" }
 ```
 
 [Rokit](https://github.com/rojo-rbx/rokit) and

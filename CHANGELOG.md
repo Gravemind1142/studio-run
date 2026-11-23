@@ -6,6 +6,8 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-23
+
 ### Added
 
 - `--input name=<file>` (repeatable) and `--binary-output <file>`, on both
@@ -18,7 +20,7 @@ All notable changes to this project are recorded here. The format follows
   where known). The same on both hosts.
 - macOS support. Hidden launches pass Studio's `--background` flag and run in
   a process group, instead of the Windows private desktop and job object.
-  The next release also publishes `macos-aarch64` and `macos-x86_64` archives.
+  Releases publish `macos-aarch64` and `macos-x86_64` archives.
 - `--cloud` (or `STUDIO_RUN_HOST=cloud`): run the script as
   an Open Cloud Luau Execution task instead of in local Studio, with the same
   output formats and exit codes. Runs on the place's latest version or on
@@ -28,7 +30,7 @@ All notable changes to this project are recorded here. The format follows
 - `studio-run doctor --cloud` checks the cloud settings and key with a trivial
   task.
 - Linux x86_64 builds, which run `--cloud` only: local Studio commands exit 2
-  there. The next release publishes a `linux-x86_64` archive.
+  there. Releases publish a `linux-x86_64` archive.
 - jsonl: the `start` event has `host` (`local` or `cloud`), and with `--cloud`
   the universe, place, place version and task. A new `error` event with a
   stable `code` explains a `125` exit under `--cloud`.
@@ -80,5 +82,6 @@ First release.
   installed Studio.
 - Release builds for Windows x86_64, installable with Foreman, Rokit or Aftman.
 
-[Unreleased]: https://github.com/Gravemind1142/studio-run/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Gravemind1142/studio-run/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Gravemind1142/studio-run/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Gravemind1142/studio-run/releases/tag/v0.1.0
