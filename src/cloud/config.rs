@@ -1,5 +1,4 @@
-//! Cloud settings, from the command line only. There's deliberately no config
-//! file: the universe and place a run uses aren't something to commit and share.
+//! Cloud settings, from the command line.
 
 pub const DEFAULT_KEY_ENV: &str = "ROBLOX_API_KEY";
 

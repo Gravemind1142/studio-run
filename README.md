@@ -263,9 +263,8 @@ task in a place you own, instead of in local Studio. Output, `--format`,
 3. Put the key in the `ROBLOX_API_KEY` environment variable (or another,
    named with `--api-key-env`). The key is never accepted as an argument, so it
    can't end up in shell history or CI logs.
-4. Name the place with `--universe-id` and `--place-id` on every run. There's
-   no config file for them on purpose: test places and the places CI runs on
-   aren't meant to be committed or shared. In CI, pass them from secrets.
+4. Name the place with `--universe-id` and `--place-id`. In CI, pass them
+   from secrets.
 5. Check it: `studio-run doctor --cloud --universe-id <id> --place-id <id>`
    runs a trivial task.
 
