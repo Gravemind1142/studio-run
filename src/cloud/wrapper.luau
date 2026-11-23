@@ -12,6 +12,10 @@
 local SOURCE = __SR_SOURCE__
 local CHUNK_NAME = __SR_CHUNK__ -- "name.luau": used in errors and tracebacks
 local CAPTURE_PRINT = __SR_CAPTURE__
+-- The script's first vararg (`local ctx = ...`); see README, "Script context".
+local CONTEXT = __SR_CONTEXT__
+-- Only known once the task runs: the latest version, or the one just uploaded.
+CONTEXT.place.version = game.PlaceVersion
 
 local PROTOCOL = 1
 local SENTINEL = "@@studio" .. "-run@@"
@@ -239,7 +243,7 @@ else
 	end
 	local packed = table.pack(xpcall(fn, function(e)
 		return { message = tostring(e), traceback = cleanTraceback(debug.traceback(nil, 2)) }
-	end))
+	end, CONTEXT))
 	if packed[1] then
 		result = { ok = true, exitCode = exitCodeFrom(packed[2]), reason = "returned" }
 	else
