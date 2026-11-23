@@ -186,7 +186,7 @@ fn request_retrying(method: &str, url: &str, body: Option<&Value>, tries: u32) -
 }
 
 /// Waits so task creations stay under the rate limit, across all tests in this binary.
-fn pace_create() {
+pub fn pace_create() {
     let mut last = LAST_CREATE.lock().unwrap();
     if let Some(t) = *last {
         let since = t.elapsed();

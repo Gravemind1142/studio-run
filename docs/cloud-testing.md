@@ -8,9 +8,13 @@ is committed: the tests read three settings from a gitignored `.env` file.
 These tests are `#[ignore]`d like the Studio ones, so `cargo test` never needs
 any of this.
 
-> **Status:** the cloud host is still a spec. The first tests are the probes for
-> its open questions (§14 and §15 of the spec), in `tests/cloud_probes/` and
-> `tests/cloud_behavior.rs`, with findings recorded in `docs/cloud-behavior.md`.
+There are two suites:
+
+- `tests/cloud.rs`: end-to-end tests of `studio-run run --cloud`, using the
+  same fixtures as the local Studio tests in `tests/studio.rs`.
+- `tests/cloud_behavior.rs`: checks that Luau Execution still behaves as
+  recorded in [cloud-behavior.md](cloud-behavior.md), using the probes in
+  `tests/cloud_probes/` and a minimal client in `tests/common/cloud.rs`.
 
 ## 1. Create a test experience
 
@@ -62,8 +66,12 @@ itself reads, so the tests never pick up a key you use for something else.
 ## 4. Run the tests
 
 ```powershell
+cargo test --test cloud -- --ignored --test-threads=1
 cargo test --test cloud_behavior -- --ignored --nocapture --test-threads=1
 ```
+
+The tests upload versions of `tests/fixtures/` places to your test place, so
+its version history grows with each run; that's expected.
 
 A test that can't find a setting fails with a message naming it and pointing
 here. The key is never printed, even in a failed test's output.
@@ -75,8 +83,9 @@ the same account at the same time slows them down.
 
 ## CI
 
-CI runs the cloud tests with the maintainers' experience and key, stored as
-repository secrets with the same three names. It runs them only on pushes to
+CI (`.github/workflows/cloud.yml`) runs both suites with the maintainers'
+experience and key, stored as repository secrets with the same three names.
+Without the secrets, the workflow skips with a notice. It runs them only on pushes to
 `main` and on manual runs, never on pull requests: GitHub doesn't give secrets
 to pull requests from forks, and a pull request's code shouldn't get the key
 anyway. If your change affects the cloud host, run the tests with your own

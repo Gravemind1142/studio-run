@@ -1,0 +1,49 @@
+name: Cloud tests
+
+# Runs the --cloud end-to-end tests and the Open Cloud behaviour checks against
+# the maintainers' test experience (docs/cloud-testing.md). Never on pull
+# requests: their code mustn't get the key, and forks don't get secrets anyway.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run at a time: task creation is rate limited per key owner.
+concurrency:
+  group: cloud-tests
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  cloud:
+    name: Cloud tests
+    runs-on: ubuntu-latest
+    env:
+      STUDIO_RUN_TEST_UNIVERSE_ID: ${{ secrets.STUDIO_RUN_TEST_UNIVERSE_ID }}
+      STUDIO_RUN_TEST_PLACE_ID: ${{ secrets.STUDIO_RUN_TEST_PLACE_ID }}
+      STUDIO_RUN_TEST_API_KEY: ${{ secrets.STUDIO_RUN_TEST_API_KEY }}
+    steps:
+      - name: Check the secrets are set
+        id: secrets
+        run: |
+          if [ -z "$STUDIO_RUN_TEST_API_KEY" ]; then
+            echo "::notice::Cloud test secrets aren't set; skipping. See docs/cloud-testing.md."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.secrets.outputs.skip != 'true'
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.secrets.outputs.skip != 'true'
+      - uses: Swatinem/rust-cache@v2
+        if: steps.secrets.outputs.skip != 'true'
+      - name: End-to-end tests
+        if: steps.secrets.outputs.skip != 'true'
+        run: cargo test --locked --test cloud -- --ignored --test-threads=1
+      - name: Behaviour checks
+        if: steps.secrets.outputs.skip != 'true'
+        run: cargo test --locked --test cloud_behavior -- --ignored --test-threads=1

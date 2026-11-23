@@ -11,6 +11,35 @@ All notable changes to this project are recorded here. The format follows
 - macOS support. Hidden launches pass Studio's `--background` flag and run in
   a process group, instead of the Windows private desktop and job object.
   The next release also publishes `macos-aarch64` and `macos-x86_64` archives.
+- `--cloud` (alias `--rocale`, or `STUDIO_RUN_HOST=cloud`): run the script as
+  an Open Cloud Luau Execution task instead of in local Studio, with the same
+  output formats and exit codes. Runs on the place's latest version, on
+  `--place-version`, or on a place file uploaded as a new Saved version
+  (`--place`, which needs `--allow-upload` or `upload = true`). New options
+  `--api-key-env`, `--config`, `--queue-timeout` and `--poll-interval`.
+- `studio-run.toml` (`[cloud]` section) for the universe, place, key variable
+  and upload permission, found in the current directory or a parent.
+- `studio-run doctor --cloud` checks the cloud settings and key with a trivial
+  task.
+- Linux x86_64 builds, which run `--cloud` only: local Studio commands exit 2
+  there. The next release publishes a `linux-x86_64` archive.
+- jsonl: the `start` event has `host` (`local` or `cloud`), and with `--cloud`
+  the universe, place, place version and task. A new `error` event with a
+  stable `code` explains a `125` exit under `--cloud`.
+- [studio-run-cloud.md](studio-run-cloud.md), the design of the cloud host;
+  [docs/cloud-behavior.md](docs/cloud-behavior.md), how Luau Execution tasks
+  behave, re-checked by `tests/cloud_behavior.rs`; and `tests/cloud.rs`,
+  end-to-end tests of `--cloud`. Both need a test experience and key of your
+  own ([docs/cloud-testing.md](docs/cloud-testing.md)).
+
+### Changed
+
+- Releases publish one `SHA256SUMS` file instead of a `.sha256` file per zip.
+  Foreman matches asset names by substring, so `…-windows-x86_64.zip.sha256`
+  could be picked instead of the zip.
+- `--place` together with `--place-id`, and `--place-id` without
+  `--universe-id`, are now reported by studio-run (exit 2) rather than by the
+  argument parser, since they combine differently under `--cloud`.
 
 ## [0.1.0]
 

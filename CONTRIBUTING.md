@@ -64,7 +64,10 @@ Once it tells you something studio-run depends on, add a check for it to
 
 The cloud host needs your own test experience and API key, set in a
 gitignored `.env` file (copy `.env.example`). [docs/cloud-testing.md](docs/cloud-testing.md) walks
-through the setup.
+through the setup. If your change touches the cloud host (`src/cloud/`), run
+`cargo test --test cloud -- --ignored --test-threads=1` and say in the pull
+request that it passed; if it touches the local host, run `tests/studio.rs` as
+above.
 
 ## Pull requests
 

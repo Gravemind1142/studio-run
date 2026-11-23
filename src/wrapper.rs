@@ -5,6 +5,7 @@
 
 const TEMPLATE: &str = include_str!("wrapper.luau");
 
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub struct WrapperOptions {
     /// Name shown in errors and tracebacks, e.g. `test.luau`.
     pub chunk_name: String,
@@ -15,6 +16,7 @@ pub struct WrapperOptions {
 }
 
 /// Build the wrapper script around `source`.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub fn generate(source: &[u8], opts: &WrapperOptions) -> String {
     let source = source.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(source);
     // Replace SOURCE last, so placeholder text inside the user's code is never touched.

@@ -1,6 +1,7 @@
 # studio-run: cloud host (`--cloud`)
 
-Status: spec, nothing built. Targets studio-run v0.2. Written against the v0.1.0 README.
+Status: the first part (§15) is built; the rest is still a spec. Written against the
+v0.1.0 README.
 
 ## 1. Goal
 
@@ -64,13 +65,13 @@ it, read its logs, download its binary output.
 | `<script.luau>` | Same. Embedded in the task script (§7). |
 | `--place <file>` | Uploaded to the configured place as a **Saved** (unpublished) version, then the task runs on that exact version. Needs `--allow-upload` or `upload = true` in config (§5), because the new version becomes the place's latest, which is what Studio and Team Create open next, and what tasks created without a version run on. An `.rbxlx` has trailing whitespace trimmed before upload, because the API rejects XML with a newline after `</roblox>`. |
 | `--place-id --universe-id` | The place to run on (and to upload to with `--place`). Can come from config. |
-| no place given | Locally: empty baseplate. Cloud: runs on the configured place's latest version, or `--place-version`. "Latest" is resolved to a version number once, before the task is created, and reported in the `start` event, so a concurrent upload can't change it mid-run. |
+| no place given | Locally: empty baseplate. Cloud: runs on the configured place's latest version, or `--place-version`. The task is created without a version, and the version it ran on (from the task's `path`) is reported in the `start` event. There's no call to look up "latest" first, so a concurrent upload may change which version that is; pin one with `--place-version` where it matters. |
 | `--timeout <s>` | Sent as the task timeout: how long the script may run. Exit 124 on expiry. Must be ≤ the API's task limit (5 minutes, which is also the API's default); larger is a usage error (exit 2). Upload and queue time don't count against it (see `--queue-timeout`). |
 | `--grace <s>` | Ignored (no process to stop). Accepted so the same args work on both hosts. |
 | `--format text\|jsonl` | Same formats (§8). |
 | `--output script\|normal\|verbose` | Same filtering. In the cloud there are no plugins, so `normal` is quieter. |
 | `--no-capture` | Same. |
-| `--trace-modules` | Implemented with ModuleScripts instead of `loadstring` (§7.2), if tasks can read place modules' `Source` (**⚠ verify**); otherwise a usage error under `--cloud`. |
+| `--trace-modules` | A usage error under `--cloud` for now. Can be implemented with ModuleScripts instead of `loadstring` (§7.2), if tasks can read place modules' `Source` (**⚠ verify**). |
 | `--visible` | Usage error under `--cloud`. |
 | `--keep-temp` | Keeps the generated task script and the raw API responses, with signed URLs and auth headers redacted. |
 | `--studio <exe>` | Ignored under `--cloud`. |
@@ -252,23 +253,22 @@ the event from the binary output, then one from the logs.
 Text and jsonl formats are unchanged. Additions:
 
 ```json
-{"seq":1,"kind":"start","chunk":"tests/run.luau","host":"cloud","universeId":111,"placeId":444,"placeVersion":58,"taskId":"..."}
-{"seq":2,"kind":"status","state":"uploading"}
-{"seq":3,"kind":"status","state":"queued"}
-{"seq":4,"kind":"status","state":"running"}
+{"seq":1,"kind":"start","chunk":"run.luau","host":"cloud","universeId":111,"placeId":444,"placeVersion":58,"taskId":"..."}
 {"seq":40,"kind":"result","ok":true,"exitCode":0,"reason":"returned"}
-{"seq":41,"kind":"error","code":"rate_limited","message":"...","retryAfter":12}
+{"seq":1,"kind":"error","code":"auth","message":"couldn't create the task: HTTP 401: Invalid API Key (...)"}
 ```
 
 - `start` gains `host` on both hosts (`"local"` locally), plus the IDs and task ID in the
   cloud.
-- `status` events report cloud progress (`uploading`, `queued`, `running`). Text format
-  shows them only with `--output verbose`.
-- `error` reports host failures with a stable `code` (`auth`, `permission`, `not_found`,
-  `rate_limited`, `quota`, `upload_failed`, `task_failed`, `network`). It precedes a 125
-  exit. Local mode uses it too (`studio_not_found`, `studio_start_failed`).
+- Progress (uploading, task created, queued, running) is shown as `studio-run:` notes in
+  text format with `--output verbose`. It isn't a jsonl event: those are all the
+  wrapper's, numbered by it, and progress happens before the wrapper runs.
+- `error` reports cloud host failures with a stable `code` (`auth`, `permission`,
+  `not_found`, `invalid_request`, `rate_limited`, `server`, `http`, `network`,
+  `upload_failed`, `task_failed`). It precedes a 125 exit. Local failures are still notes
+  only.
 - **No streaming:** in the cloud, the script's output arrives in one batch after the task
-  finishes (§7.3); only `status` events appear while it runs. The README says so.
+  finishes (§7.3). The README says so.
 
 ## 9. Exit codes
 
@@ -305,19 +305,20 @@ minute per key owner (§5.1), which in practice is the tighter limit for paralle
 Checks, in order, printing pass/fail for each:
 1. A config or flags name a universe and place.
 2. The API key env var is set.
-3. The key can read the place, create a task, and (if uploads are allowed) upload. Uses a
-   trivial task (`return true`) on the latest version. A failure names the missing scope
+3. The key can create and read a task. Uses a trivial task on the latest version. Uploads
+   aren't tested, since that would add a version to the place. A failure names the missing scope
    or the IP restriction (§5.1) where the API says which.
 4. Reports the security level, `loadstring` availability and `RunService` state seen
    inside the task, as a quick check against `docs/cloud-behavior.md`.
 
 ## 11. Platforms and releases
 
-- The local host stays Windows-only; under `#[cfg(windows)]`.
-- `--cloud` works on Windows, Linux and macOS. Without `--cloud`, non-Windows builds exit
-  2 with "local Studio runs need Windows; use --cloud".
-- New release assets alongside the Windows zip: `studio-run-<version>-linux-x86_64.zip`,
-  `studio-run-<version>-macos-x86_64.zip`, `studio-run-<version>-macos-aarch64.zip`.
+- The local host runs on Windows and macOS (macOS support landed separately, using Studio's
+  `--background` flag); it's compiled only there.
+- `--cloud` works on Windows, macOS and Linux. Without `--cloud`, Linux builds exit 2
+  with "local Studio runs need Windows or macOS; use --cloud".
+- Release assets: Windows x86_64, macOS aarch64 and x86_64, and a new
+  `studio-run-<version>-linux-x86_64.zip`.
   Checked against the Foreman, Rokit and Aftman sources: all three pick the right zip on
   each platform, and prefer `aarch64` on Apple Silicon. Two conditions:
   - **Always ship both macOS zips.** Foreman's Intel macOS list ends with a bare `macos`,
@@ -362,7 +363,7 @@ Checks, in order, printing pass/fail for each:
 
 - §5.0: CI runs `studio-run run tests/run.luau --place build/test.rbxl --cloud` on Linux
   runners; rocale-cli leaves `foreman.toml`.
-- Agents use the same command with or without `--cloud`; non-Windows agents always pass
+- Agents use the same command with or without `--cloud`; Linux agents always pass
   it.
 - place-promote's `exec` and `test` (specs/place-promote.md §4.3–4.4) could delegate to
   `studio-run --cloud --place-version`, leaving place-promote with only upload,
@@ -434,18 +435,18 @@ and Aftman sources.
    is marked experimental but returns the `versionNumber` a task needs. The documented
    replacement, `PATCH /assets/v1/assets/{placeId}`, returns a `revisionId` via a
    long-running operation; whether that equals the place version number isn't stated. The
-   legacy endpoint works today, so v0.2 uses it.
+   legacy endpoint works today, so studio-run uses it.
 2. Whether a task can read the `Source` of ModuleScripts that are part of the place, for
    `--trace-modules` (§7.2).
 
 ## 15. Milestones
 
-- **Spike, before v0.2.0:** done. `tests/cloud_behavior.rs` answered §14 except two
-  questions that don't block v0.2.0, the ModuleScript approach replaced inlining (§7.1),
-  and `--place` can upload Saved versions as planned.
-- **v0.2.0:** `--cloud` on an existing place version and with `--place` upload; same
-  output and exit codes; config file; `doctor --cloud`; Windows, Linux and macOS builds.
-  Linux is the point of the release (§13): with the local host behind `#[cfg(windows)]`,
-  the other builds are mostly a release-workflow change.
-- **v0.2.x:** `--arg`.
-- **v0.3.0:** `--input` and `--binary-output` on both hosts; parity suite in CI.
+- **Spike:** done. `tests/cloud_behavior.rs` answered §14 except two questions that
+  don't block the first release, the ModuleScript approach replaced inlining (§7.1), and
+  `--place` can upload Saved versions as planned.
+- **First release with `--cloud`:** built. `--cloud` on the latest version, an existing
+  `--place-version`, or a `--place` upload; same output and exit codes; config file;
+  `doctor --cloud`; Windows, Linux and macOS builds; end-to-end tests in `tests/cloud.rs`.
+- **Next:** `--arg` and the script context (§6).
+- **Later:** `--input` and `--binary-output` on both hosts; `--trace-modules` under
+  `--cloud`; parity suite in CI.

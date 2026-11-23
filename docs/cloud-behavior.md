@@ -89,6 +89,7 @@ after the user's file, sets its `Source` to `return function(...) <source>\nend`
 | A binary input's `uploadUri` takes the bytes with **`PUT`**. | `binary_input_and_output`. | `binary_input_and_output` |
 | With a binary input, the task's only argument is a table whose only key is `BinaryInput`, a buffer. | `binary_io.luau`. | `binary_input_and_output` |
 | With `enableBinaryOutput`, returning `{ BinaryOutput = buffer, ReturnValues = {…} }` gives `ReturnValues` in `output.results` and the buffer at `binaryOutputUri`, byte for byte. | `binary_io.luau`. | `binary_input_and_output` |
+| With `enableBinaryOutput`, any other return value fails the task: `SCRIPT_ERROR`, "Returned table must contain the BinaryOutput key." | An early `doctor --cloud` that returned a plain table. | — |
 
 ### Place versions
 
