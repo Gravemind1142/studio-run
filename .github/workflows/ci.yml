@@ -48,3 +48,17 @@ jobs:
         run: cargo test --locked
       - name: Release build
         run: cargo build --locked --release
+
+  # The single check to require on the branch. It fails unless every OS above
+  # passed. It runs even when the matrix fails, because a skipped job would
+  # not block merging.
+  tests:
+    name: Clippy and tests
+    needs: check
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every OS to pass
+        run: |
+          echo "matrix result: ${{ needs.check.result }}"
+          test "${{ needs.check.result }}" = "success"
