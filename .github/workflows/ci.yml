@@ -28,9 +28,12 @@ jobs:
       - run: cargo fmt --all --check
 
   check:
-    name: Clippy and tests
-    # studio-run uses Win32 APIs, so it only builds on Windows.
-    runs-on: windows-latest
+    name: Clippy and tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable

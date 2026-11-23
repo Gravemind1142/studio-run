@@ -1,5 +1,5 @@
-//! studio-run: run Luau scripts in Roblox Studio on Windows without showing
-//! Studio's window. See README.md.
+//! studio-run: run Luau scripts in Roblox Studio without showing Studio's
+//! window. See README.md.
 
 mod events;
 mod locate;
@@ -41,7 +41,8 @@ enum Command {
 
 #[derive(Args)]
 struct StudioArg {
-    /// Path to RobloxStudioBeta.exe (default: find the installed Studio).
+    /// Path to the Studio executable, or on macOS the .app bundle
+    /// (default: find the installed Studio).
     #[arg(long, env = "STUDIO_EXE", global = true)]
     studio: Option<PathBuf>,
 }

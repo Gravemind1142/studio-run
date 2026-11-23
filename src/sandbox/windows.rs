@@ -12,6 +12,8 @@ use windows::Win32::System::Threading::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{BOOL, PCWSTR, PWSTR};
 
+use super::WindowInfo;
+
 static COUNTER: AtomicU32 = AtomicU32::new(0);
 
 /// A running Studio process tree. Dropping it kills the tree and closes the
@@ -20,12 +22,6 @@ pub struct Studio {
     job: HANDLE,
     process: HANDLE,
     desktop: Option<HDESK>,
-}
-
-#[derive(Debug, Clone)]
-pub struct WindowInfo {
-    pub class: String,
-    pub title: String,
 }
 
 impl Studio {
@@ -222,7 +218,7 @@ fn wide(s: &str) -> Vec<u16> {
 }
 
 /// Quote one argument for `CommandLineToArgvW`-style parsing.
-pub fn quote(arg: &str) -> String {
+fn quote(arg: &str) -> String {
     if !arg.is_empty() && !arg.contains([' ', '\t', '\n', '"']) {
         return arg.to_string();
     }

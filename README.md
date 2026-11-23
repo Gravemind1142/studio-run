@@ -1,22 +1,24 @@
 # studio-run
 
-Run Luau scripts in Roblox Studio on Windows **without Studio ever appearing on
-your screen**, and get the script's output and a meaningful exit code back.
+Run Luau scripts in Roblox Studio on Windows or macOS **without Studio taking
+over your screen**, and get the script's output and a meaningful exit code back.
 
 ```powershell
 studio-run run smoke-test.luau --place game.rbxl
 ```
 
-Studio runs on a private Windows desktop that is never shown, so it can't
-steal focus or interrupt you, and several runs can go at once.
+On Windows, Studio runs on a private desktop that is never shown, so it can't
+steal focus or interrupt you, and several runs can go at once. On macOS, Studio
+is started with its own `--background` flag, which keeps it out of the
+foreground. The commands below are the same in either shell.
 
 ## Requirements
 
-- Windows 10 or 11.
+- Windows 10 or 11, or macOS.
 - Roblox Studio, installed and **logged in at least once** (studio-run reuses
   your saved login).
-- To build from source: Rust (stable, `x86_64-pc-windows-msvc`) and the Visual
-  Studio C++ Build Tools.
+- To build from source: Rust (stable). On Windows, also the Visual Studio C++
+  Build Tools.
 
 ## Install
 
@@ -36,7 +38,8 @@ rokit add Gravemind1142/studio-run
 ```
 
 Each [GitHub release](https://github.com/Gravemind1142/studio-run/releases)
-also has a zip with `studio-run.exe` in it. Or build from source:
+also has a zip with the executable in it (`studio-run.exe` on Windows,
+`studio-run` on macOS). Or build from source:
 
 ```powershell
 cargo install --git https://github.com/Gravemind1142/studio-run
@@ -66,7 +69,7 @@ studio-run run <script.luau> [options] [-- <extra Studio args>]
 | `--trace-modules` | | Attribute required modules' output to them. See the caveats below. |
 | `--visible` | | Show Studio's window on your desktop, for debugging. |
 | `--keep-temp` | | Keep the generated wrapper and output file. |
-| `--studio <exe>` | auto | Path to `RobloxStudioBeta.exe`. Also `STUDIO_EXE`. |
+| `--studio <exe>` | auto | Path to the Studio executable, or on macOS the `.app` bundle. Also `STUDIO_EXE`. |
 
 ### Exit codes
 
@@ -199,21 +202,26 @@ This finds Studio and runs a test script in it to check your setup.
    and `ScriptContext.Error` for everything else. It reports what happens as
    short `@@studio-run@@{json}` lines.
 2. Studio is started with `--task RunScript --quitAfterExecution`:
-   - on a **private desktop** (`CreateDesktopW`, never switched to), so its
-     windows exist but are never shown;
-   - inside a **job object**, so Studio and its child processes are killed if
-     the run times out, or if studio-run itself exits or is interrupted.
-3. studio-run follows **Studio's own log file** in `%LOCALAPPDATA%\Roblox\logs`,
-   which is written live, unlike `--outputFile`. It reads the events from
-   there and joins messages that were split to fit Studio's ~1,000-character
-   log-line limit. The `--outputFile` is read as a fallback at the end.
+   - on Windows, on a **private desktop** (`CreateDesktopW`, never switched
+     to), so its windows exist but are never shown, and inside a **job
+     object**, so Studio and its child processes are killed if the run times
+     out, or if studio-run itself exits or is interrupted;
+   - on macOS, with **`--background`**, so Studio stays out of the foreground,
+     and in its own **process group**, killed the same way on timeout or exit.
+3. studio-run follows **Studio's own log file** (`%LOCALAPPDATA%\Roblox\logs`
+   on Windows, `~/Library/Logs/Roblox` on macOS), which is written live, unlike
+   `--outputFile`. It reads the events from there and joins messages that were
+   split to fit Studio's ~1,000-character log-line limit. The `--outputFile` is
+   read as a fallback at the end.
 4. When the `result` event arrives, Studio gets `--grace` seconds to quit by
    itself, then it's stopped. `--quitAfterExecution` occasionally leaves Studio
    at its start page instead of quitting.
 
 ## Known limitations
 
-- Windows only (macOS has Studio's own `--background` flag instead).
+- On macOS, hiding Studio means its `--background` flag. That keeps the window
+  out of the foreground today. It is not a private desktop, and a later Studio
+  build could show a window. Re-run the behaviour checks after a Studio update.
 - Plugin output shows up in the `other` group. There's no way to tell plugin
   output apart from your modules' output.
 - Not tested: running while you have Studio open yourself, or after your saved
@@ -238,9 +246,9 @@ They run up to three hidden Studio instances at once. CI can't run them (its
 runners have no logged-in Studio), so run them locally before opening a PR
 that touches the wrapper, the sandbox or the log reader.
 
-CI (`.github/workflows/ci.yml`) runs on every pull request and push to `main`:
-`cargo fmt --check`, `cargo clippy -D warnings`, the unit tests and a release
-build.
+CI (`.github/workflows/ci.yml`) runs on every pull request and push to `main`,
+on Windows and macOS: `cargo fmt --check`, `cargo clippy -D warnings`, the
+unit tests and a release build.
 
 ### Releasing
 
@@ -248,10 +256,14 @@ build.
 2. Tag and push: `git tag v0.2.0` then `git push origin v0.2.0`.
 
 `.github/workflows/release.yml` checks that the tag matches `Cargo.toml`,
-builds, and publishes a GitHub release with
-`studio-run-<version>-windows-x86_64.zip` and its SHA-256. Foreman and Rokit
-find that asset by name, so keep the naming. A tag with a suffix, like
-`v0.2.0-rc.1`, becomes a pre-release.
+builds, and publishes a GitHub release with these zips and their SHA-256 sums:
+
+- `studio-run-<version>-windows-x86_64.zip`
+- `studio-run-<version>-macos-aarch64.zip`
+- `studio-run-<version>-macos-x86_64.zip`
+
+Foreman and Rokit find the asset for the current OS by name, so keep the
+naming. A tag with a suffix, like `v0.2.0-rc.1`, becomes a pre-release.
 
 ### How Studio behaves
 

@@ -5,8 +5,8 @@ are all welcome.
 
 ## Setup
 
-You need Windows 10 or 11, Rust (stable, `x86_64-pc-windows-msvc`), the Visual
-Studio C++ Build Tools, and Roblox Studio installed and logged in.
+You need Windows 10 or 11, or macOS, plus Rust (stable) and Roblox Studio
+installed and logged in. On Windows, also the Visual Studio C++ Build Tools.
 
 ```powershell
 cargo build
@@ -44,10 +44,13 @@ and how, and `tests/behavior.rs` re-checks each finding:
 cargo test --test behavior -- --ignored --nocapture
 ```
 
-If a check fails after a Studio update, Studio has changed: update the
-finding, the Studio version it was checked against, and studio-run if it
-relied on the old behaviour. To investigate something new, write a probe in
-`tests/probes/` and run it on its own, with or without the wrapper:
+If a check fails after a Studio update, on Windows or macOS, Studio has
+changed: update the finding, the Studio version it was checked against, and
+studio-run if it relied on the old behaviour. Run the suite on the platform
+you have. macOS findings are recorded separately, because Studio's CLI can
+differ there, including what `--background` does. To investigate something
+new, write a probe in `tests/probes/` and run it on its own, with or without
+the wrapper:
 
 ```powershell
 cargo run -- run tests/probes/capabilities.luau --no-capture --output verbose

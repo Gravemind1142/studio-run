@@ -6,6 +6,12 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- macOS support. Hidden launches pass Studio's `--background` flag and run in
+  a process group, instead of the Windows private desktop and job object.
+  The next release also publishes `macos-aarch64` and `macos-x86_64` archives.
+
 ## [0.1.0]
 
 First release.
