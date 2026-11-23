@@ -3,7 +3,48 @@
 //! Studio's Luau can't read local files, so the user's source is embedded in
 //! the wrapper as an escaped string literal.
 
+use std::collections::BTreeMap;
+
 const TEMPLATE: &str = include_str!("wrapper.luau");
+
+/// What the script gets as its first vararg (`local ctx = ...`), in the same
+/// shape on both hosts.
+pub struct ScriptContext<'a> {
+    /// `"local"` or `"cloud"`.
+    pub host: &'static str,
+    /// From `--arg key=value`.
+    pub args: &'a BTreeMap<String, String>,
+    pub universe_id: Option<u64>,
+    pub place_id: Option<u64>,
+    pub place_version: Option<u64>,
+}
+
+impl ScriptContext<'_> {
+    /// The context as a Luau table constructor.
+    pub fn to_lua(&self) -> String {
+        let args: Vec<String> = self
+            .args
+            .iter()
+            .map(|(k, v)| {
+                format!(
+                    "[{}] = {}",
+                    lua_string(k.as_bytes()),
+                    lua_string(v.as_bytes())
+                )
+            })
+            .collect();
+        let num = |n: Option<u64>| n.map_or("nil".to_string(), |n| n.to_string());
+        format!(
+            "{{ host = {}, version = {}, args = {{ {} }}, place = {{ universeId = {}, placeId = {}, version = {} }} }}",
+            lua_string(self.host.as_bytes()),
+            lua_string(env!("CARGO_PKG_VERSION").as_bytes()),
+            args.join(", "),
+            num(self.universe_id),
+            num(self.place_id),
+            num(self.place_version),
+        )
+    }
+}
 
 #[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub struct WrapperOptions {
@@ -13,6 +54,8 @@ pub struct WrapperOptions {
     pub capture_print: bool,
     /// Load required ModuleScripts ourselves (opt-in; see README).
     pub trace_modules: bool,
+    /// The script's context, as a Luau table ([`ScriptContext::to_lua`]).
+    pub context: String,
 }
 
 /// Build the wrapper script around `source`.
@@ -28,6 +71,9 @@ pub fn generate(source: &[u8], opts: &WrapperOptions) -> String {
         )
         .replacen("__SR_CAPTURE__", bool_lit(opts.capture_print), 1)
         .replacen("__SR_TRACE__", bool_lit(opts.trace_modules), 1)
+        // The context holds --arg values, so it goes in after the other
+        // settings, and its placeholder comes after SOURCE's in the template.
+        .replacen("__SR_CONTEXT__", &opts.context, 1)
         .replacen("__SR_SOURCE__", &lua_string(source), 1)
 }
 
@@ -64,7 +110,38 @@ mod tests {
             chunk_name: "test.luau".into(),
             capture_print: true,
             trace_modules: false,
+            context: "{}".into(),
         }
+    }
+
+    #[test]
+    fn context_is_a_luau_table() {
+        let mut args = BTreeMap::new();
+        args.insert("b".to_string(), "x\"y".to_string());
+        args.insert("a".to_string(), "1".to_string());
+        let ctx = ScriptContext {
+            host: "local",
+            args: &args,
+            universe_id: Some(1),
+            place_id: Some(2),
+            place_version: None,
+        };
+        assert_eq!(
+            ctx.to_lua(),
+            format!(
+                r#"{{ host = "local", version = "{}", args = {{ ["a"] = "1", ["b"] = "x\"y" }}, place = {{ universeId = 1, placeId = 2, version = nil }} }}"#,
+                env!("CARGO_PKG_VERSION")
+            )
+        );
+    }
+
+    #[test]
+    fn placeholder_text_in_args_is_untouched() {
+        let mut o = opts();
+        o.context = r#"{ args = { x = "__SR_SOURCE__" } }"#.into();
+        let w = generate(b"print(1)", &o);
+        assert!(w.contains(r#"local SOURCE = "print(1)""#));
+        assert!(w.contains(r#"x = "__SR_SOURCE__""#));
     }
 
     #[test]
@@ -85,6 +162,7 @@ mod tests {
         assert!(w.contains(r#"local CHUNK_NAME = "=test.luau""#));
         assert!(w.contains("local CAPTURE_PRINT = true"));
         assert!(w.contains("local TRACE_MODULES = false"));
+        assert!(w.contains("local CONTEXT = {}"));
         assert!(w.starts_with("--[[studio-run wrapper]]"));
         // Studio echoes the wrapper into its log; the sentinel must not appear in it.
         assert!(!w.contains(crate::events::SENTINEL));

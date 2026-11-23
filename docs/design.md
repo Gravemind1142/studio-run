@@ -117,7 +117,15 @@ Tasks have no `loadstring`. The cloud wrapper
 named after the file, sets its `Source` to `return function(...) <source>\nend`
 with the source starting on line 1, and requires it. Then it does what the
 local wrapper does with `loadstring`'s result: `setfenv` for `print`/`warn`,
-and `xpcall`.
+and `xpcall` with the script context as the argument.
+
+The context (`ctx.host`, `ctx.args`, ...) is an argument rather than a global
+such as `STUDIO_RUN`: the user's code is a ModuleScript with its own
+environment, which makes a global awkward, while an argument works the same
+way on both hosts. It's embedded in the script as a table
+constructor; under `--cloud`, `place.version` is filled in from
+`game.PlaceVersion` when the task runs, since the latest version isn't known
+when the task is created.
 
 This beat the alternative, inlining the source into the task script:
 
