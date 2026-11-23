@@ -130,7 +130,7 @@ struct RunArgs {
 
     /// Load required ModuleScripts through studio-run so their output and
     /// errors are attributed to them. Not the real `require`: don't use with
-    /// test runners or other code that has its own module loader. Local only.
+    /// test runners or other code that has its own module loader.
     #[arg(long)]
     trace_modules: bool,
 
@@ -308,9 +308,6 @@ fn cmd_run_cloud(
     if !a.studio_args.is_empty() {
         return usage("extra Studio arguments (after --) can't be used with --cloud");
     }
-    if a.trace_modules {
-        return usage("--trace-modules isn't supported with --cloud yet");
-    }
     if a.grace.is_some() {
         note("--grace is ignored with --cloud");
     }
@@ -338,6 +335,7 @@ fn cmd_run_cloud(
         format: a.format,
         filter: a.output,
         capture_print: !a.no_capture,
+        trace_modules: a.trace_modules,
         keep_temp: a.keep_temp,
         args,
     })

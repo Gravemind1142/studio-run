@@ -77,7 +77,7 @@ pub fn generate(source: &[u8], opts: &WrapperOptions) -> String {
         .replacen("__SR_SOURCE__", &lua_string(source), 1)
 }
 
-fn bool_lit(b: bool) -> &'static str {
+pub fn bool_lit(b: bool) -> &'static str {
     if b { "true" } else { "false" }
 }
 

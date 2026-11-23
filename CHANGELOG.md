@@ -21,6 +21,7 @@ All notable changes to this project are recorded here. The format follows
   `--place-version`, or on a place file uploaded as a new Saved version
   (`--place`, which needs `--allow-upload` or `upload = true`). New options
   `--api-key-env`, `--config`, `--queue-timeout` and `--poll-interval`.
+  `--trace-modules` works under `--cloud` too.
 - `studio-run.toml` (`[cloud]` section) for the universe, place, key variable
   and upload permission, found in the current directory or a parent.
 - `studio-run doctor --cloud` checks the cloud settings and key with a trivial

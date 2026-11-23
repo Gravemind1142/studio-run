@@ -145,6 +145,14 @@ than at `<eof>`. (Top-level `export type` still compiles there.) Requiring the
 source verbatim would avoid that, but a module must return exactly one value
 and gets no `...`.
 
+`--trace-modules` loads required ModuleScripts the same way, where the local
+wrapper uses `loadstring`. For each one, the traced `require` reads its
+`Source` (a task can read the place's own modules), compiles it as a new
+ModuleScript named after the original's full name (so errors read
+`ReplicatedStorage.Greeter:8`, as locally), `setfenv`s the returned function
+with the captured `print`/`warn` and `script` set to the original, calls it
+once and caches the result.
+
 ### Events come back in the binary output
 
 Task logs can't be read until the task finishes, and keep only the last
