@@ -19,7 +19,7 @@ All notable changes to this project are recorded here. The format follows
 - macOS support. Hidden launches pass Studio's `--background` flag and run in
   a process group, instead of the Windows private desktop and job object.
   The next release also publishes `macos-aarch64` and `macos-x86_64` archives.
-- `--cloud` (alias `--rocale`, or `STUDIO_RUN_HOST=cloud`): run the script as
+- `--cloud` (or `STUDIO_RUN_HOST=cloud`): run the script as
   an Open Cloud Luau Execution task instead of in local Studio, with the same
   output formats and exit codes. Runs on the place's latest version or on
   `--place-version`. It never uploads place files: `--place` is a usage error
