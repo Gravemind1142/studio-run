@@ -292,8 +292,7 @@ task in a place you own, instead of in local Studio. Output, `--format`,
 | `--keep-temp` | | Keep the generated task script and the final task (without its download URL). |
 
 Flags win over `studio-run.toml`. `--grace` and `--studio` are ignored with
-`--cloud`; `--visible`, `--trace-modules` and extra Studio arguments are usage
-errors (exit 2).
+`--cloud`; `--visible` and extra Studio arguments are usage errors (exit 2).
 
 ### Differences from local runs
 
@@ -312,8 +311,10 @@ The task is a headless server, not Studio's edit mode. What we found is in
 - `--input` files are uploaded, packed together, as the task's binary input
   before the task is created; the binary output comes back with the task's
   output.
-- Your script is compiled as the body of a function, so a top-level
-  `export type` is a compile error under `--cloud`.
+- Your script is compiled as the body of a function, so a compile error at
+  the very end of the file (an unfinished statement) is reported one line
+  past it, at `end`, under `--cloud`. With `--trace-modules`, the same goes
+  for required modules.
 - The task script, with your source and `--arg` values embedded, is limited
   to 4 MB.
 - A `.rbxlx` file has trailing whitespace trimmed before upload: Roblox rejects
@@ -357,6 +358,9 @@ This is **not** the real `require`, so behaviour differs in edge cases:
 - `require(assetId)` and non-ModuleScript arguments fall back to the real
   `require` (untraced).
 - Functions running in a custom environment lose some Luau optimizations.
+- Under `--cloud`, each module is compiled as the body of a function (tasks
+  have no `loadstring`), so a compile error at the very end of a module is
+  reported one line late, at `end`.
 
 ## Other commands
 

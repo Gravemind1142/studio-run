@@ -36,6 +36,8 @@ pub struct CloudOptions {
     pub format: Format,
     pub filter: OutputFilter,
     pub capture_print: bool,
+    /// Load required ModuleScripts ourselves (opt-in; see README).
+    pub trace_modules: bool,
     pub keep_temp: bool,
     /// From `--arg key=value`, for the script's context.
     pub args: BTreeMap<String, String>,
@@ -100,6 +102,7 @@ pub fn run(opts: &CloudOptions) -> i32 {
         &opts.source,
         &opts.chunk_name,
         opts.capture_print,
+        opts.trace_modules,
         opts.binary_output.is_some(),
         &context.to_lua(),
     );

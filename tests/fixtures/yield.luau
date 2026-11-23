@@ -1,0 +1,8 @@
+print("before")
+task.wait(0.2)
+print("after wait")
+task.defer(function()
+	print("deferred")
+end)
+task.wait()
+print("end")

@@ -110,7 +110,7 @@ fn fill_once(template: &str, parts: &[(&str, &str)]) -> String {
     out
 }
 
-fn bool_lit(b: bool) -> &'static str {
+pub fn bool_lit(b: bool) -> &'static str {
     if b { "true" } else { "false" }
 }
 

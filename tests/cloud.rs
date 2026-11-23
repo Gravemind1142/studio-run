@@ -253,6 +253,37 @@ fn place_upload_with_real_require_then_place_version() {
 
 #[test]
 #[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+fn trace_modules_attributes_module_output() {
+    let place = fixture("modules.rbxlx");
+    let o = run_jsonl(
+        "modules.luau",
+        &[
+            "--place",
+            place.to_str().unwrap(),
+            "--allow-upload",
+            "--trace-modules",
+        ],
+    );
+    assert_eq!(o.code, 1); // Greeter.boom() errors
+    assert_eq!(
+        o.script_output("print"),
+        [
+            "Greeter top-level print",
+            "Greeter.greet says hi to tests",
+            "hi tests"
+        ]
+    );
+    let errors = o.script_output("error");
+    assert!(
+        errors[0].starts_with("ReplicatedStorage.Greeter:8: Greeter.boom error"),
+        "{errors:?}"
+    );
+    // The wrapper's frames are dropped, as for the script's own errors.
+    assert!(!errors[0].contains("TaskScript"), "{errors:?}");
+}
+
+#[test]
+#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
 fn timeout_exits_124() {
     let o = run_jsonl("forever.luau", &["--timeout", "5"]);
     assert_eq!(o.code, 124);
@@ -285,7 +316,6 @@ fn usage_errors_exit_2() {
     for args in [
         vec!["run", script, "--visible"],
         vec!["run", script, "--timeout", "301"],
-        vec!["run", script, "--trace-modules"],
         vec!["run", script, "--place", place.to_str().unwrap()], // no --allow-upload
         vec!["run", script, "--", "--someStudioArg"],
     ] {

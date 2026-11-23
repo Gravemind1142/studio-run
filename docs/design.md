@@ -170,9 +170,19 @@ This beat the alternative, inlining the source into the task script:
   reports it as a `compile` result, as locally. Otherwise the task would fail
   with a `TaskScript:` message and no result.
 
-The cost: the source is a function body, so a top-level `export type` is a
-compile error under `--cloud`. Requiring the source verbatim would allow it,
-but a module must return exactly one value and gets no `...`.
+The cost: the source is a function body, so a compile error at the very end
+of the file is reported one line late, at the wrapper's closing `end` rather
+than at `<eof>`. (Top-level `export type` still compiles there.) Requiring the
+source verbatim would avoid that, but a module must return exactly one value
+and gets no `...`.
+
+`--trace-modules` loads required ModuleScripts the same way, where the local
+wrapper uses `loadstring`. For each one, the traced `require` reads its
+`Source` (a task can read the place's own modules), compiles it as a new
+ModuleScript named after the original's full name (so errors read
+`ReplicatedStorage.Greeter:8`, as locally), `setfenv`s the returned function
+with the captured `print`/`warn` and `script` set to the original, calls it
+once and caches the result.
 
 ### Events come back in the binary output
 
