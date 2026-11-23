@@ -1,9 +1,9 @@
 -- Can the cloud wrapper load a place's ModuleScripts itself, for
--- --trace-modules? Runs on tests/fixtures/modules.rbxlx, which has
--- ReplicatedStorage.Greeter. Reads the module's Source, then loads it as the
--- wrapper would: a new ModuleScript named after the original's full name, with
--- the source wrapped in `return function() ... end`, required, setfenv'd and
--- called once.
+-- --trace-modules? The test place is an empty baseplate, so this first creates
+-- ReplicatedStorage.Greeter (the module in tests/fixtures/modules.rbxlx). Then
+-- it reads the module's Source and loads it as the wrapper would: a new
+-- ModuleScript named after the original's full name, with the source wrapped
+-- in `return function() ... end`, required, setfenv'd and called once.
 local LogService = game:GetService("LogService")
 local ScriptContext = game:GetService("ScriptContext")
 
@@ -25,7 +25,23 @@ end
 
 local results = {}
 
--- 1. Reading the Source of a module that's part of the place.
+-- 1. Reading the Source of a module in the DataModel.
+do
+	local greeter = Instance.new("ModuleScript")
+	greeter.Name = "Greeter"
+	greeter.Source = [[print("Greeter top-level print")
+local M = {}
+function M.greet(name)
+	print("Greeter.greet says hi to", name)
+	return "hi " .. name
+end
+function M.boom()
+	error("Greeter.boom error")
+end
+return M
+]]
+	greeter.Parent = game:GetService("ReplicatedStorage")
+end
 local original = game:GetService("ReplicatedStorage"):FindFirstChild("Greeter")
 results.found = original ~= nil
 local readOk, source = pcall(function()

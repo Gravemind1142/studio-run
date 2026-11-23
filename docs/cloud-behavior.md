@@ -73,7 +73,8 @@ ModuleScript named after the original's full name, with the original's
 
 | Finding | How we know | Check |
 |---|---|---|
-| **A task can read the `Source` of a ModuleScript that's part of the place.** | `place_modules.luau` on the test place, `modules.rbxlx`. | `place_modules` |
+| **A task can read the `Source` of a ModuleScript that's part of the place.** | `place_modules.luau` on an uploaded `modules.rbxlx`, last on 2026-11-23. Not re-checked: the tests no longer upload places. | — |
+| A task can read the `Source` of a ModuleScript in the DataModel, here one the task created in ReplicatedStorage. | `place_modules.luau`. | `place_modules` |
 | Loaded under its full name (`ReplicatedStorage.Greeter`), with `print` replaced by `setfenv`, all of the module's output is captured, top level included. Errors and tracebacks read `ReplicatedStorage.Greeter:8`, the same as `loadstring` with that chunk name locally. | `place_modules.luau`. | `place_modules` |
 | Names with dots work everywhere the wrapper matches on them: a compile error arrives through `MessageOut` as `ReplicatedStorage.Bad:1: …`, and an error in a spawned thread reaches `ScriptContext.Error` with stack `ReplicatedStorage.Async, line 2`. | `place_modules.luau`. | `place_modules` |
 

@@ -243,8 +243,8 @@ fn place_version_runs_on_that_version() {
 #[test]
 #[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
 fn trace_modules_attributes_module_output() {
-    // The test place is tests/fixtures/modules.rbxlx (docs/cloud-testing.md).
-    let o = run_jsonl("modules.luau", &["--trace-modules"]);
+    // Creates the module itself: the test place is an empty baseplate.
+    let o = run_jsonl("modules_runtime.luau", &["--trace-modules"]);
     assert_eq!(o.code, 1); // Greeter.boom() errors
     assert_eq!(
         o.script_output("print"),

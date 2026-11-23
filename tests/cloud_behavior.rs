@@ -355,8 +355,8 @@ fn binary_input_and_output() {
 }
 
 /// A place's own ModuleScripts can be loaded the way --trace-modules does it
-/// under --cloud (docs/design.md). Runs on the test place, which is
-/// tests/fixtures/modules.rbxlx (docs/cloud-testing.md).
+/// under --cloud (docs/design.md). The probe creates the module itself, since
+/// the test place is an empty baseplate.
 #[test]
 #[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
 fn place_modules() {
@@ -364,12 +364,8 @@ fn place_modules() {
     report("place_modules", &summary(&task));
     let r = result(&task);
 
-    // A task can read the Source of a module that's part of the place.
-    assert_eq!(
-        r["found"], true,
-        "no ReplicatedStorage.Greeter: publish tests/fixtures/modules.rbxlx \
-         as the test place (docs/cloud-testing.md)"
-    );
+    // A task can read the Source of a module in the DataModel.
+    assert_eq!(r["found"], true);
     assert_eq!(r["readSource"]["ok"], true);
     assert!(r["readSource"]["length"].as_u64().unwrap() > 0);
 

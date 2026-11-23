@@ -43,19 +43,17 @@ Use a new experience that exists only for these tests. Tasks use the
 experience's **real** DataStores, MemoryStores and so on, so never point the
 tests at a game you care about.
 
-1. In Studio, open **`tests/fixtures/modules.rbxlx`** from this repository. It's
-   a baseplate with a few ModuleScripts that the `--trace-modules` tests
-   require.
+1. In Studio, open a new **Baseplate**.
 2. **File > Publish to Roblox**, as a new experience. Any name will do; keep it
    private.
 3. Note its **universe ID** (the experience ID) and **place ID**, from the
    experience's page on the
    [Creator Dashboard](https://create.roblox.com/dashboard/creations).
 
-The tests run on the place's latest version and never upload or publish
-anything, so its version history doesn't grow. If you change
-`modules.rbxlx`, publish it again. A test that needs its modules and can't find
-them says so.
+Keep the place an empty baseplate. The tests run on its latest version and
+never upload or publish anything: a test that needs something in the place,
+such as ModuleScripts, creates it in its own task, and nothing a task changes
+is saved.
 
 ## 2. Create an API key
 
