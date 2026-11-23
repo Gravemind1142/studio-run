@@ -1,5 +1,5 @@
 //! The cloud host (`--cloud`): run a script as an Open Cloud Luau Execution
-//! task. See studio-run-cloud.md and docs/cloud-behavior.md.
+//! task. See docs/design.md and docs/cloud-behavior.md.
 
 pub mod api;
 pub mod config;

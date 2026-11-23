@@ -1,6 +1,6 @@
 # How Open Cloud Luau Execution behaves
 
-The `--cloud` host ([studio-run-cloud.md](../studio-run-cloud.md)) runs scripts
+The `--cloud` host ([design.md](design.md#the-cloud-host---cloud)) runs scripts
 as [Open Cloud Luau Execution](https://create.roblox.com/docs/cloud/reference/features/luau-execution)
 tasks. The API reference leaves a lot out. This file records what we found by
 running tasks, how we found it, and which check in
@@ -22,7 +22,8 @@ This takes about two and a half minutes, mostly waiting out the task creation
 rate limit. Each test runs probes from `tests/cloud_probes/` and checks the
 findings below; with `--nocapture` it also prints what it saw as `FINDING`
 lines. A failure means Roblox has changed something: update the finding and
-"Last checked", and the spec if it relied on the old behaviour.
+"Last checked", and studio-run (and [design.md](design.md)) if they relied on
+the old behaviour.
 
 ## How we investigated
 

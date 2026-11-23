@@ -26,7 +26,7 @@ All notable changes to this project are recorded here. The format follows
 - jsonl: the `start` event has `host` (`local` or `cloud`), and with `--cloud`
   the universe, place, place version and task. A new `error` event with a
   stable `code` explains a `125` exit under `--cloud`.
-- [studio-run-cloud.md](studio-run-cloud.md), the design of the cloud host;
+- A "cloud host" section in [docs/design.md](docs/design.md);
   [docs/cloud-behavior.md](docs/cloud-behavior.md), how Luau Execution tasks
   behave, re-checked by `tests/cloud_behavior.rs`; and `tests/cloud.rs`,
   end-to-end tests of `--cloud`. Both need a test experience and key of your

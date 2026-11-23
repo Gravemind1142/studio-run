@@ -1,7 +1,7 @@
 # Testing against Open Cloud
 
 The cloud tests run scripts as Open Cloud Luau Execution tasks
-([studio-run-cloud.md](../studio-run-cloud.md)). They need a Roblox experience
+([design.md](design.md#the-cloud-host---cloud)). They need a Roblox experience
 and an API key of your own. Setup takes about five minutes and nothing about it
 is committed: the tests read three settings from a gitignored `.env` file.
 

@@ -3,7 +3,7 @@
 //!
 //! Each test runs a probe from tests/cloud_probes as a real task in your test
 //! experience and checks findings from docs/cloud-behavior.md. When one fails,
-//! Roblox has changed: update the doc, and the spec or studio-run if needed.
+//! Roblox has changed: update the doc, and studio-run or docs/design.md if needed.
 //! Needs the setup in docs/cloud-testing.md; ignored by default.
 //!
 //!     cargo test --test cloud_behavior -- --ignored --nocapture --test-threads=1
@@ -166,7 +166,7 @@ fn runtime_error() {
     );
 }
 
-/// The user's source compiled as a ModuleScript: the cloud wrapper's approach (spec §7.1).
+/// The user's source compiled as a ModuleScript: the cloud wrapper's approach (docs/design.md).
 #[test]
 #[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
 fn module_loading() {
