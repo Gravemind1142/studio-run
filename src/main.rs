@@ -1,6 +1,7 @@
 //! studio-run: run Luau scripts in hidden Roblox Studio (Windows and macOS), or as
 //! Open Cloud Luau Execution tasks (`--cloud`, anywhere). See README.md.
 
+mod binary;
 mod cloud;
 mod events;
 mod output;
@@ -22,6 +23,7 @@ use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
+use binary::Input;
 use output::{EXIT_USAGE, Format, OutputFilter, note};
 
 #[derive(Parser)]
@@ -38,7 +40,7 @@ struct Cli {
 enum Command {
     /// Run a Luau script in hidden Studio (or with --cloud, as an Open Cloud
     /// Luau Execution task) and print its output.
-    Run(RunArgs),
+    Run(Box<RunArgs>),
     /// Write Roblox's API dump as JSON. Windows and macOS only.
     ApiDump(ApiDumpArgs),
     /// Check that Studio can be found and can run a script (or with --cloud,
@@ -137,6 +139,16 @@ struct RunArgs {
     /// Show Studio's window on your desktop (for debugging). Local only.
     #[arg(long)]
     visible: bool,
+
+    /// Pass FILE to the script as the buffer `ctx.inputs[NAME]` (repeatable).
+    /// At most 100 MiB in total.
+    #[arg(long = "input", value_name = "NAME=FILE")]
+    inputs: Vec<String>,
+
+    /// Write the buffer the script passes to `ctx.setBinaryOutput` to FILE (an
+    /// empty file if it passes none). At most 8 MiB locally, 256 MiB with --cloud.
+    #[arg(long, value_name = "FILE")]
+    binary_output: Option<PathBuf>,
 
     /// Keep the generated wrapper and output (or task script and task), and
     /// print where they are.
@@ -240,7 +252,7 @@ enum ApiKind {
 fn main() {
     let cli = Cli::parse();
     let code = match cli.command {
-        Command::Run(a) => cmd_run(a),
+        Command::Run(a) => cmd_run(*a),
         Command::ApiDump(a) => local::api_dump(a),
         Command::Doctor(a) if a.cloud.enabled() => cmd_doctor_cloud(a),
         Command::Doctor(a) => local::doctor(a.studio),
@@ -289,10 +301,14 @@ fn cmd_run(mut a: RunArgs) -> i32 {
         Ok(args) => args,
         Err(e) => return usage(&e),
     };
+    let inputs = match binary::read_inputs(&a.inputs) {
+        Ok(i) => i,
+        Err(e) => return usage(&e),
+    };
     if a.cloud.enabled() {
-        cmd_run_cloud(a, source, chunk_name, args)
+        cmd_run_cloud(a, source, chunk_name, args, inputs)
     } else {
-        local::run(a, source, chunk_name, args)
+        local::run(a, source, chunk_name, args, inputs)
     }
 }
 
@@ -301,6 +317,7 @@ fn cmd_run_cloud(
     source: Vec<u8>,
     chunk_name: String,
     args: BTreeMap<String, String>,
+    inputs: Vec<Input>,
 ) -> i32 {
     if a.visible {
         return usage("--visible needs local Studio; it can't be used with --cloud");
@@ -338,6 +355,8 @@ fn cmd_run_cloud(
         trace_modules: a.trace_modules,
         keep_temp: a.keep_temp,
         args,
+        inputs,
+        binary_output: a.binary_output,
     })
 }
 
@@ -360,7 +379,7 @@ mod local {
     use std::path::PathBuf;
     use std::time::{Duration, Instant};
 
-    use super::{ApiDumpArgs, ApiKind, RawArgs, RunArgs, StudioArg, usage};
+    use super::{ApiDumpArgs, ApiKind, Input, RawArgs, RunArgs, StudioArg, usage};
     use crate::output::{EXIT_TIMEOUT, EXIT_TOOL_ERROR, Format, OutputFilter, note};
     use crate::run::{self, RunOptions, Target};
     use crate::{locate, sandbox};
@@ -377,6 +396,7 @@ mod local {
         source: Vec<u8>,
         chunk_name: String,
         args: BTreeMap<String, String>,
+        inputs: Vec<Input>,
     ) -> i32 {
         if a.place_version.is_some() || a.allow_upload {
             return usage("--place-version and --allow-upload need --cloud");
@@ -414,6 +434,8 @@ mod local {
             studio_exe: exe,
             studio_args: a.studio_args,
             args,
+            inputs,
+            binary_output: a.binary_output,
         })
     }
 
@@ -483,6 +505,8 @@ mod local {
             studio_exe: exe,
             studio_args: vec![],
             args: BTreeMap::new(),
+            inputs: vec![],
+            binary_output: None,
         });
         let secs = started.elapsed().as_secs_f32();
         if code == 0 {
@@ -528,7 +552,7 @@ mod local {
 /// Elsewhere there's no Studio: everything but --cloud is a usage error.
 #[cfg(not(any(windows, target_os = "macos")))]
 mod local {
-    use super::{ApiDumpArgs, RawArgs, RunArgs, StudioArg, usage};
+    use super::{ApiDumpArgs, Input, RawArgs, RunArgs, StudioArg, usage};
 
     const MSG: &str = "local Studio runs need Windows or macOS; use --cloud";
 
@@ -537,6 +561,7 @@ mod local {
         _: Vec<u8>,
         _: String,
         _: std::collections::BTreeMap<String, String>,
+        _: Vec<Input>,
     ) -> i32 {
         usage(MSG)
     }

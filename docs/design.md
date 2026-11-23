@@ -85,6 +85,37 @@ jest-roblox has its own module loader (`loadstring` + `setfenv`, since
 changes only the entry chunk's environment. Jest's output comes through as
 `other`, which is shown by default.
 
+## Binary input and output
+
+Scripts get `--input` files as buffers in `ctx.inputs`, and set binary output
+with `ctx.setBinaryOutput`, both added by the wrappers to the script context.
+
+Locally, each input is embedded in the wrapper as an escaped string literal,
+like the source, and turned into a buffer with `buffer.fromstring`. Studio ran
+scripts with literals of 1–256 MB in the same 7.5–10 s as an empty one, and
+`buffer.fromstring` on a 16 MB literal took 3 ms, against 3.2 s to decode the
+same data from base64 in Luau. `@` is escaped too, so an input containing the
+event sentinel can't inject events through Studio's echo of the wrapper. The
+cap is 100 MiB, the cloud's.
+
+The output has to come back through Studio's log, so it's base64-encoded
+(URL-safe alphabet, which JSON never escapes) and sent as `binary` events of
+512 characters, joined with `more` like split messages and sent just before
+`result`. studio-run collects them and never prints them. Lines of 512 bytes
+totalling 16 MB added about 6 s to a run, but 64 MB took 155 s, hence the
+8 MiB cap.
+
+Under `--cloud`, a task takes one binary input, so the inputs are packed into
+one buffer with a small index (`SRI1`, then each name and its data, with
+lengths), uploaded with `PUT`, and unpacked by the cloud wrapper from the
+task's `BinaryInput` argument. The binary input is created only when there are
+inputs. The output goes in the task's binary output after the events, with a
+header giving the length of each (`SRB1`, then the two lengths). The two
+together must fit in 256 MiB; if they don't, the wrapper drops the output and
+fails the run with an error. If the binary output can't be downloaded, the
+events still come from the logs, but the run exits 125 when `--binary-output`
+was asked for.
+
 ## ModuleScripts
 
 Modules loaded with the real `require` print with the real `print`, so their
@@ -158,7 +189,8 @@ once and caches the result.
 Task logs can't be read until the task finishes, and keep only the last
 450 KB, dropping the start of a long run. So the wrapper collects its events
 and returns them, as the same `@@studio-run@@{json}` lines, in the task's
-binary output (up to 256 MiB). The result is also returned as the task's
+binary output (up to 256 MiB), followed by the script's own binary output
+([above](#binary-input-and-output)). The result is also returned as the task's
 return value, in case the events are lost. The wrapper prints each event too,
 so a task that times out (whose logs keep the output from before the timeout)
 still yields what it printed. studio-run reads the binary output, falls back

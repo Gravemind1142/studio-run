@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use crate::binary::{self, Input};
 use crate::logtail::LogTail;
 use crate::output::{
     EXIT_TIMEOUT, EXIT_TOOL_ERROR, Format, OutputFilter, Printer, StartInfo, note,
@@ -34,6 +35,10 @@ pub struct RunOptions {
     pub studio_args: Vec<String>,
     /// From `--arg key=value`, for the script's context.
     pub args: BTreeMap<String, String>,
+    /// From `--input`, embedded in the wrapper.
+    pub inputs: Vec<Input>,
+    /// `--binary-output`: where to write the script's binary output.
+    pub binary_output: Option<PathBuf>,
 }
 
 /// Run the script and return the process exit code to use.
@@ -69,10 +74,12 @@ fn run_inner(opts: &RunOptions) -> Result<i32, String> {
     };
     let source = wrapper::generate(
         &opts.source,
+        &opts.inputs,
         &WrapperOptions {
             chunk_name: opts.chunk_name.clone(),
             capture_print: opts.capture_print,
             trace_modules: opts.trace_modules,
+            binary_output: opts.binary_output.is_some(),
             context: context.to_lua(),
         },
     );
@@ -165,6 +172,10 @@ fn run_inner(opts: &RunOptions) -> Result<i32, String> {
 
     if opts.keep_temp {
         note(&format!("kept temp files in {}", dir.path.display()));
+    }
+    if let (Some(path), Some(_)) = (&opts.binary_output, &out.result) {
+        // A script that never called ctx.setBinaryOutput leaves an empty file.
+        binary::write_output(path, out.binary.as_deref().unwrap_or_default())?;
     }
     if let Some(code) = out.exit_code() {
         if killed_after_result && opts.filter == OutputFilter::Verbose {

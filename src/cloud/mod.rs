@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
+use crate::binary::{self, Input};
 use crate::output::{
     EXIT_TIMEOUT, EXIT_TOOL_ERROR, EXIT_USAGE, Format, OutputFilter, Printer, StartInfo, note,
 };
@@ -40,6 +41,10 @@ pub struct CloudOptions {
     pub keep_temp: bool,
     /// From `--arg key=value`, for the script's context.
     pub args: BTreeMap<String, String>,
+    /// From `--input`, packed into the task's binary input.
+    pub inputs: Vec<Input>,
+    /// `--binary-output`: where to write the script's binary output.
+    pub binary_output: Option<PathBuf>,
 }
 
 /// The settings and key every cloud command needs, or the exit code to use.
@@ -98,6 +103,7 @@ pub fn run(opts: &CloudOptions) -> i32 {
         &opts.chunk_name,
         opts.capture_print,
         opts.trace_modules,
+        opts.binary_output.is_some(),
         &context.to_lua(),
     );
     if script.len() > wrapper::MAX_SCRIPT_BYTES {
@@ -222,11 +228,25 @@ impl Run<'_> {
             }
         }
 
+        let mut binary_input = None;
+        if !self.opts.inputs.is_empty() {
+            self.status("uploading the inputs");
+            let packed = binary::pack(&self.opts.inputs);
+            match self
+                .client
+                .create_binary_input(s.universe_id, &packed, self.deadline())
+            {
+                Ok(p) => binary_input = Some(p),
+                Err(e) => return self.fail(&e, "couldn't upload the inputs"),
+            }
+        }
+
         let task = match self.client.create_task(
             s.universe_id,
             s.place_id,
             version,
             script,
+            binary_input.as_deref(),
             self.opts.timeout.as_secs(),
             self.deadline(),
         ) {
@@ -288,9 +308,11 @@ impl Run<'_> {
             match task["binaryOutputUri"].as_str() {
                 Some(uri) => match self.client.download(uri, self.deadline()) {
                     Ok(bytes) => {
-                        for line in String::from_utf8_lossy(&bytes).lines() {
+                        let (events, data) = binary::split_task_output(&bytes);
+                        for line in String::from_utf8_lossy(events).lines() {
                             self.out.line(line);
                         }
+                        self.out.binary = data.map(<[u8]>::to_vec);
                     }
                     Err(e) => {
                         note(&format!(
@@ -303,11 +325,11 @@ impl Run<'_> {
             }
             self.out.finish();
             if let Some(code) = self.out.exit_code() {
-                return code;
+                return self.write_binary_output(code);
             }
             // The events were lost, but the result also comes back as the return value.
             if let Some(code) = task["output"]["results"][0]["exitCode"].as_i64() {
-                return code as i32;
+                return self.write_binary_output(code as i32);
             }
             self.out.error(
                 "task_failed",
@@ -338,6 +360,28 @@ impl Run<'_> {
         };
         self.out.error("task_failed", &msg);
         EXIT_TOOL_ERROR
+    }
+
+    /// After the script reported a result: writes `--binary-output`, and
+    /// returns the exit code to use.
+    fn write_binary_output(&mut self, code: i32) -> i32 {
+        let Some(path) = &self.opts.binary_output else {
+            return code;
+        };
+        let Some(data) = &self.out.binary else {
+            self.out.error(
+                "binary_output_lost",
+                "the script finished, but its binary output couldn't be downloaded",
+            );
+            return EXIT_TOOL_ERROR;
+        };
+        match binary::write_output(path, data) {
+            Ok(()) => code,
+            Err(e) => {
+                note(&e);
+                EXIT_TOOL_ERROR
+            }
+        }
     }
 
     fn print_logs(&mut self, path: &str) {
@@ -424,6 +468,7 @@ pub fn doctor(opts: &DoctorOptions) -> i32 {
             settings.place_id,
             None,
             DOCTOR_SCRIPT,
+            None,
             60,
             deadline,
         )

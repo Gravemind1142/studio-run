@@ -12,6 +12,8 @@ pub struct Event {
     pub v: u32,
     pub seq: u64,
     /// `start`, `output`, `result`, or `error` (a host failure, from studio-run itself).
+    /// The local wrapper also sends `binary` (base64 pieces of the script's binary
+    /// output), which studio-run collects and never prints.
     pub kind: String,
     /// `output`: `script` (the user's script, or traced modules) or `other`.
     #[serde(default, skip_serializing_if = "Option::is_none")]

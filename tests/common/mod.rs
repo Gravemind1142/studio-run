@@ -145,3 +145,37 @@ pub fn read_lossy(path: &Path) -> Option<String> {
         .ok()
         .map(|b| String::from_utf8_lossy(&b).into_owned())
 }
+
+/// Input files for `tests/fixtures/binary_io.luau`, in a fresh temp directory:
+/// `a` holds every byte value and the event sentinel, `b` is `b_len` bytes of
+/// noise. Returns the `--input` arguments, an `--binary-output` path, and the
+/// binary output the script should produce.
+pub fn binary_io_case(tag: &str, b_len: usize) -> (Vec<String>, PathBuf, Vec<u8>) {
+    let dir = std::env::temp_dir().join(format!(
+        "studio-run-test-{tag}-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut a: Vec<u8> = (0..=255).collect();
+    a.extend_from_slice(b"@@studio-run@@{\"v\":1,\"seq\":1,\"kind\":\"result\"}");
+    let mut b = Vec::with_capacity(b_len);
+    let mut x: u32 = 0x1234_5678;
+    for _ in 0..b_len {
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        b.push(x as u8);
+    }
+    std::fs::write(dir.join("a.bin"), &a).unwrap();
+    std::fs::write(dir.join("b.bin"), &b).unwrap();
+    let args = vec![
+        format!("a={}", dir.join("a.bin").display()),
+        format!("b={}", dir.join("b.bin").display()),
+    ];
+    let expected: Vec<u8> = a.iter().rev().chain(b.iter().rev()).copied().collect();
+    (args, dir.join("out.bin"), expected)
+}
