@@ -156,7 +156,12 @@ impl Printer {
         if !show {
             return;
         }
-        let msg = ev.message.as_deref().unwrap_or("");
+        let mut msg = ev.message.clone().unwrap_or_default();
+        if let Some(context) = &ev.context {
+            // A structured log message's context, after it as compact JSON.
+            msg.push(' ');
+            msg.push_str(&serde_json::to_string(context).unwrap_or_default());
+        }
         match level {
             "warn" => eprintln!("warning: {msg}"),
             "error" => eprintln!("error: {msg}"),

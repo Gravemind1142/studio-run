@@ -210,6 +210,11 @@ stderr, prefixed with `studio-run:`. `--output` picks what's shown:
   noise.
 - `verbose`: also Studio's info-level messages.
 
+A structured log message's context is printed after it as compact JSON:
+`joined {"userId":1}`. Structured log messages count as `other`, even when your
+script logs them, so `--output script` hides them, and `LogService:Info`
+messages only show with `--output verbose`.
+
 Output is streamed while the script runs.
 
 In **jsonl format**, every event is printed (no filtering), one per line:
@@ -218,6 +223,7 @@ In **jsonl format**, every event is printed (no filtering), one per line:
 {"seq":1,"kind":"start","chunk":"test.luau"}
 {"seq":2,"kind":"output","source":"script","level":"print","message":"hello"}
 {"seq":5,"kind":"output","source":"other","level":"warn","message":"..."}
+{"seq":6,"kind":"output","source":"other","level":"info","message":"joined","context":{"userId":1}}
 {"seq":7,"kind":"output","source":"script","level":"error","async":true,"message":"test.luau:3: boom\ntest.luau, line 3\n"}
 {"seq":9,"kind":"result","ok":true,"exitCode":0,"reason":"returned"}
 ```
@@ -230,6 +236,7 @@ In **jsonl format**, every event is printed (no filtering), one per line:
 | `placeVersion`, `taskId` (start) | `--cloud`: the place version and the task. |
 | `source` | `script` or `other` |
 | `level` | `print`, `info`, `warn`, `error` |
+| `context` (output) | A structured log message's context, e.g. `{"userId":1}` from `LogService:Info("joined", {userId = 1})`. Only when it isn't empty. Roblox flattens it: values are strings, numbers or booleans, and anything else arrives as text (`Vector3` → `"1, 2, 3"`, an Instance → its name). |
 | `reason` (result) | `returned`, `error`, `compile` |
 | `code` (error) | `--cloud` failures: `auth`, `permission`, `not_found`, `invalid_request`, `rate_limited`, `server`, `http`, `network`, `task_failed`, `binary_output_lost` |
 

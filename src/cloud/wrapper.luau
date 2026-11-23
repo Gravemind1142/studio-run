@@ -82,36 +82,85 @@ local function utf8Cut(s, i)
 	return i
 end
 
--- Send an event, splitting a long `message` into pieces flagged `more`.
-local function emit(ev)
-	local message = ev.message
-	if message == nil then
-		send(ev)
-		return
-	end
-	message = sanitize(message)
-	if encodedLen(message) <= BUDGET then
-		ev.message = message
-		send(ev)
-		return
-	end
-	while #message > 0 do
-		local size = math.min(#message, BUDGET)
+-- Split `s` into pieces of at most BUDGET JSON-encoded bytes, cut between
+-- UTF-8 sequences. An empty string is one empty piece.
+local function pieces(s)
+	local out = {}
+	repeat
+		local size = math.min(#s, BUDGET)
 		local cut, piece
 		repeat
-			cut = utf8Cut(message, size)
+			cut = utf8Cut(s, size)
 			if cut == 0 then
 				cut = size
 			end
-			piece = string.sub(message, 1, cut)
+			piece = string.sub(s, 1, cut)
 			size = math.floor(size / 2)
 		until encodedLen(piece) <= BUDGET or size < 8
-		message = string.sub(message, cut + 1)
+		table.insert(out, piece)
+		s = string.sub(s, cut + 1)
+	until #s == 0
+	return out
+end
+
+-- Send an event. A long `message` or `contextJson` is split into pieces
+-- flagged `more`: first the message's, then the context's.
+local function emit(ev)
+	if ev.message ~= nil then
+		ev.message = sanitize(ev.message)
+	end
+	local size = 0
+	for _, field in { "message", "contextJson" } do
+		if ev[field] ~= nil then
+			size += encodedLen(ev[field])
+		end
+	end
+	if size <= BUDGET then
+		send(ev)
+		return
+	end
+	local parts = {}
+	for _, field in { "message", "contextJson" } do
+		if ev[field] ~= nil then
+			for _, piece in pieces(ev[field]) do
+				table.insert(parts, { field, piece })
+			end
+		end
+	end
+	for i, p in parts do
 		local part = table.clone(ev)
-		part.message = piece
-		part.more = if #message > 0 then true else nil
+		part.message = nil
+		part.contextJson = nil
+		part[p[1]] = p[2]
+		part.more = if i < #parts then true else nil
 		send(part)
 	end
+end
+
+-- The context table of a structured log message (`LogService:Info(message,
+-- context)`) as a JSON object, or nil when it's empty. Roblox already flattens
+-- it to string keys and string/number/boolean values; this keeps it encodable
+-- if that changes.
+local function contextJson(context)
+	if type(context) ~= "table" or next(context) == nil then
+		return nil
+	end
+	local flat = {}
+	for k, v in context do
+		local t = type(v)
+		if t == "string" then
+			v = sanitize(v)
+		elseif t == "number" then
+			if v ~= v or v == math.huge or v == -math.huge then
+				v = tostring(v)
+			end
+		elseif t ~= "boolean" then
+			v = sanitize(tostring(v))
+		end
+		flat[sanitize(tostring(k))] = v
+	end
+	local ok, json = pcall(HttpService.JSONEncode, HttpService, flat)
+	return if ok then json else nil
 end
 
 local function join(...)
@@ -139,7 +188,7 @@ local skippingStack = false
 local compiling = nil -- the chunk name of the module being required, if any
 local compileMessage = nil
 
-LogService.MessageOut:Connect(function(message, messageType)
+LogService.MessageOut:Connect(function(message, messageType, context)
 	if string.sub(message, 1, #SENTINEL) == SENTINEL then
 		return
 	end
@@ -167,7 +216,13 @@ LogService.MessageOut:Connect(function(message, messageType)
 		skippingStack = firstLine == message
 		return
 	end
-	emit({ kind = "output", source = "other", level = level, message = message })
+	emit({
+		kind = "output",
+		source = "other",
+		level = level,
+		message = message,
+		contextJson = contextJson(context),
+	})
 end)
 
 -- Errors in threads the script spawned (task.spawn, connections, ...).

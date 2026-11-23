@@ -53,6 +53,14 @@ running it with its own `print`/`warn` via `setfenv`. Uncaught errors are
 caught with `xpcall`. Everything else reaches the wrapper through
 `LogService.MessageOut` with a level, and is reported as `other`.
 
+Structured log messages (`LogService:Info(message, context)`, `Logger`s) also
+arrive through `MessageOut`, which passes their context table as a third
+argument, already flattened by Roblox
+([studio-behavior.md](studio-behavior.md#structured-logging)). A non-empty
+context is reported as the event's `context`. Nothing in `MessageOut` says
+whether the script or something else logged the message, so these are always
+`other`, even when the script logged them.
+
 Errors in threads the script spawned come from `ScriptContext.Error`. They're
 matched to the script by chunk name, and the copy of the same error that
 `MessageOut` also delivers is dropped.
@@ -64,7 +72,10 @@ writes them to its log, which studio-run reads while Studio runs, since the
 `--outputFile` is only written at the end.
 
 Studio's log cuts lines at about 1,000 characters, so events are split into
-pieces of at most 600 bytes with a `more` flag. Each event has a `seq` so
+pieces of at most 600 bytes with a `more` flag. A context is sent as JSON text
+in `contextJson`, so it can be split the same way, after the message's
+pieces; studio-run parses it into `context` once the pieces are joined. Each
+event has a `seq` so
 pieces can be joined back together and duplicates dropped: every event can
 arrive twice, once from the live log and once from the output file read at
 exit. The sentinel is built from two pieces in the wrapper source, because

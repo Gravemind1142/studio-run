@@ -265,3 +265,11 @@ fn binary_output_is_empty_when_the_script_sets_none() {
     assert_eq!(o.code, 0);
     assert_eq!(std::fs::read(&out).unwrap(), b"");
 }
+
+#[test]
+#[ignore]
+fn structured_log_context_is_reported() {
+    let o = run_jsonl("structured_logs.luau", &[]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    common::structured_logs::check_fixture(&o.events());
+}

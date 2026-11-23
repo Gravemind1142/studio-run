@@ -68,6 +68,7 @@ const CASES: &[Case] = &[
     case("unicode.luau"),
     case("bom.luau"),
     case("long_output.luau"),
+    case("structured_logs.luau"),
     // Errors
     case("error.luau"),
     case("nested_error.luau"),
