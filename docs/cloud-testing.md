@@ -50,8 +50,10 @@ tests at a game you care about.
    experience's page on the
    [Creator Dashboard](https://create.roblox.com/dashboard/creations).
 
-What's in the place doesn't matter: the tests upload the places they need from
-`tests/fixtures/` as new unpublished versions, and run on those.
+Keep the place an empty baseplate. The tests run on its latest version and
+never upload or publish anything: a test that needs something in the place,
+such as ModuleScripts, creates it in its own task, and nothing a task changes
+is saved.
 
 ## 2. Create an API key
 
@@ -60,7 +62,7 @@ On the [Creator Dashboard](https://create.roblox.com/dashboard/credentials),
 
 | Setting | Value |
 |---|---|
-| Access permissions | **Luau execution sessions**: read and write (`universe.place.luau-execution-session:read`/`:write`). **Places**: write (`universe-places:write`), for uploading test versions. Restrict both to your test experience. |
+| Access permissions | **Luau execution sessions**: read and write (`universe.place.luau-execution-session:read`/`:write`), restricted to your test experience. Nothing else: in particular not **Assets**, which can't be restricted to one experience. |
 | Accepted IP addresses | Your public IP. `0.0.0.0/0` works from anywhere, including CI, but then the key works for anyone who has it. |
 | Expiration | Short, for example 30 days. |
 
@@ -90,9 +92,6 @@ itself reads, so the tests never pick up a key you use for something else.
 cargo test --test cloud -- --ignored --test-threads=1
 cargo test --test cloud_behavior -- --ignored --nocapture --test-threads=1
 ```
-
-The tests upload versions of `tests/fixtures/` places to your test place, so
-its version history grows with each run; that's expected.
 
 A test that can't find a setting fails with a message naming it and pointing
 here. The key is never printed, even in a failed test's output.

@@ -24,9 +24,7 @@ pub const MAX_TIMEOUT_SECS: u64 = 300;
 pub struct CloudOptions {
     pub source: Vec<u8>,
     pub chunk_name: String,
-    /// Upload this place file as a new Saved version and run on it.
-    pub place_file: Option<PathBuf>,
-    /// Run on this existing version.
+    /// Run on this existing version instead of the latest.
     pub place_version: Option<u64>,
     pub flags: config::Flags,
     pub config: Option<PathBuf>,
@@ -83,13 +81,6 @@ pub fn run(opts: &CloudOptions) -> i32 {
         Ok(s) => s,
         Err(code) => return code,
     };
-    if opts.place_file.is_some() && !settings.upload_allowed {
-        note(
-            "--place under --cloud uploads a new version to the place; pass --allow-upload, \
-             or set `upload = true` under [cloud] in studio-run.toml if the place is disposable",
-        );
-        return EXIT_USAGE;
-    }
     let context = crate::wrapper::ScriptContext {
         host: "cloud",
         args: &opts.args,
@@ -185,9 +176,9 @@ impl Run<'_> {
                 " (check the key in {}, and that it allows this machine's IP address)",
                 self.settings.api_key_env
             )),
-            "permission" => msg.push_str(
-                " (the key needs Luau execution sessions write, and Places write for --place, on this experience)",
-            ),
+            "permission" => {
+                msg.push_str(" (the key needs Luau execution sessions write on this experience)")
+            }
             _ => {}
         }
         self.out.error(e.code, &msg);
@@ -196,38 +187,6 @@ impl Run<'_> {
 
     fn go(&mut self, script: &str) -> i32 {
         let s = self.settings;
-        let mut version = self.opts.place_version;
-
-        if let Some(file) = &self.opts.place_file {
-            let data = match std::fs::read(file) {
-                Ok(d) => d,
-                Err(e) => {
-                    note(&format!("couldn't read {}: {e}", file.display()));
-                    return EXIT_USAGE;
-                }
-            };
-            let xml = file
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("rbxlx"));
-            // The upload rejects XML with anything after `</roblox>`.
-            let data = if xml {
-                data.trim_ascii_end()
-            } else {
-                &data[..]
-            };
-            self.status(&format!("uploading {} as a Saved version", file.display()));
-            match self
-                .client
-                .upload_place(s.universe_id, s.place_id, data, xml, self.deadline())
-            {
-                Ok(v) => {
-                    self.status(&format!("uploaded version {v}"));
-                    version = Some(v);
-                }
-                Err(e) => return self.fail(&e, "couldn't upload the place"),
-            }
-        }
-
         let mut binary_input = None;
         if !self.opts.inputs.is_empty() {
             self.status("uploading the inputs");
@@ -244,7 +203,7 @@ impl Run<'_> {
         let task = match self.client.create_task(
             s.universe_id,
             s.place_id,
-            version,
+            self.opts.place_version,
             script,
             binary_input.as_deref(),
             self.opts.timeout.as_secs(),
@@ -259,7 +218,7 @@ impl Run<'_> {
             return EXIT_TOOL_ERROR;
         };
         let ids = api::parse_task_path(&path);
-        self.out.start.place_version = ids.version.or(version);
+        self.out.start.place_version = ids.version.or(self.opts.place_version);
         self.out.start.task_id = ids.task_id.clone();
         let task_id = ids.task_id.unwrap_or_else(|| path.clone());
         self.status(&format!(
@@ -451,14 +410,6 @@ pub fn doctor(opts: &DoctorOptions) -> i32 {
         settings.place_id, settings.universe_id
     );
     println!("API key:  {} is set", settings.api_key_env);
-    println!(
-        "Uploads:  {}",
-        if settings.upload_allowed {
-            "allowed (--place uploads Saved versions)"
-        } else {
-            "not allowed (pass --allow-upload or set upload = true to use --place)"
-        }
-    );
     println!("Running a test task on the latest version...");
     let started = Instant::now();
     let deadline = started + Duration::from_secs(180);

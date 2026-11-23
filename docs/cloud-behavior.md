@@ -73,7 +73,8 @@ ModuleScript named after the original's full name, with the original's
 
 | Finding | How we know | Check |
 |---|---|---|
-| **A task can read the `Source` of a ModuleScript that's part of the place.** | `place_modules.luau` on an uploaded `modules.rbxlx`. | `place_modules` |
+| **A task can read the `Source` of a ModuleScript that's part of the place.** | `place_modules.luau` on an uploaded `modules.rbxlx`, last on 2026-11-23. Not re-checked: the tests no longer upload places. | — |
+| A task can read the `Source` of a ModuleScript in the DataModel, here one the task created in ReplicatedStorage. | `place_modules.luau`. | `place_modules` |
 | Loaded under its full name (`ReplicatedStorage.Greeter`), with `print` replaced by `setfenv`, all of the module's output is captured, top level included. Errors and tracebacks read `ReplicatedStorage.Greeter:8`, the same as `loadstring` with that chunk name locally. | `place_modules.luau`. | `place_modules` |
 | Names with dots work everywhere the wrapper matches on them: a compile error arrives through `MessageOut` as `ReplicatedStorage.Bad:1: …`, and an error in a spawned thread reaches `ScriptContext.Error` with stack `ReplicatedStorage.Async, line 2`. | `place_modules.luau`. | `place_modules` |
 
@@ -108,10 +109,19 @@ ModuleScript named after the original's full name, with the original's
 
 ### Place versions
 
+studio-run doesn't upload places ([design.md](design.md#no-place-uploads)), so
+these findings aren't re-checked. They're a record of what we found on
+2026-11-23 while deciding that (issue #7).
+
 | Finding | How we know | Check |
 |---|---|---|
-| **A version uploaded as Saved (unpublished) can run tasks**: `POST /universes/v1/{universe}/places/{place}/versions?versionType=Saved` returns `{"versionNumber": n}`, and a task on version *n* loads that file. | `marker_place.luau` on the uploaded `marker.rbxlx`. | `saved_version` |
-| **A task created without a version runs on the latest version, including a Saved one**, not the latest published one. | `marker_place.luau` after the upload. | `saved_version` |
-| **The upload rejects XML with a newline after `</roblox>`**: `400`, "Invalid Content stream". The same file without it uploads. Indentation, referent format and `NeedsPivotMigration` don't matter. Binary `.rbxl` uploads as `application/octet-stream`. | Uploading variants of `marker.rbxlx` and Rojo 7.7.1 builds. | `saved_version` |
+| **A version uploaded as Saved (unpublished) can run tasks**: `POST /universes/v1/{universe}/places/{place}/versions?versionType=Saved` returns `{"versionNumber": n}`, and a task on version *n* loads that file. | A probe returning `game.PlaceVersion` on the uploaded `marker.rbxlx`. | — |
+| **A task created without a version runs on the latest version, including a Saved one**, not the latest published one. | A probe returning `game.PlaceVersion` after the upload. | — |
+| **The upload rejects XML with a newline after `</roblox>`**: `400`, "Invalid Content stream". The same file without it uploads. Indentation, referent format and `NeedsPivotMigration` don't matter. Binary `.rbxl` uploads as `application/octet-stream`. | Uploading variants of `marker.rbxlx` and Rojo 7.7.1 builds. | — |
 | The upload needs `universe-places:write`; without it, `403 Scope not authorized`. | A key without it. | — |
 | Uploading a file identical to an existing version seems to return that version's number instead of creating a new one. | The same trimmed `marker.rbxlx` uploaded twice returned version 9 both times. Seen once. | — |
+| **The Assets API can upload a place too**: `PATCH /assets/v1/assets/{placeId}`, multipart, with `request` `{"assetId": <place>, "assetType": "Place", "published": false}` and the file as `fileContent` (`application/xml` for `.rbxlx`). It returns an operation (`operations/{id}`, `done: false`), done about a second later when polled with `GET /assets/v1/operations/{id}`. | Uploading `marker.rbxlx`. | — |
+| **Its `revisionId` is the place version**: a task on version `revisionId` has `game.PlaceVersion` equal to it and loads the uploaded file. Asset versions (`GET /assets/v1/assets/{placeId}/versions`) and place versions are the same list. With `published: false` the result has `isPublished: false`. | A probe returning `game.PlaceVersion` on the revision. | — |
+| **It rejects XML with a newline after `</roblox>` too, but later**: the upload returns 200, and the operation finishes with `error` `{"code": "DataLoss", "message": "Place Content Corrupted"}`. | Uploading the untrimmed `marker.rbxlx`. | — |
+| It needs the **Assets** API permission (read to poll the operation, write to upload). Without it, every Assets API request, even a `GET` of the place's asset, is `403 PERMISSION_DENIED`, "User not authenticated". `universe-places:write` isn't enough, and the Assets permission can't be restricted to one experience. The key we tested also had `universe-places:write`, so we haven't checked that Assets alone is enough. | A key before and after adding Assets read and write. | — |
+| Not checked: whether leaving out `published` publishes the version, and binary `.rbxl` uploads. | — | — |

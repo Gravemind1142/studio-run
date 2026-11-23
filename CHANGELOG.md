@@ -21,13 +21,12 @@ All notable changes to this project are recorded here. The format follows
   The next release also publishes `macos-aarch64` and `macos-x86_64` archives.
 - `--cloud` (alias `--rocale`, or `STUDIO_RUN_HOST=cloud`): run the script as
   an Open Cloud Luau Execution task instead of in local Studio, with the same
-  output formats and exit codes. Runs on the place's latest version, on
-  `--place-version`, or on a place file uploaded as a new Saved version
-  (`--place`, which needs `--allow-upload` or `upload = true`). New options
-  `--api-key-env`, `--config`, `--queue-timeout` and `--poll-interval`.
-  `--trace-modules` works under `--cloud` too.
-- `studio-run.toml` (`[cloud]` section) for the universe, place, key variable
-  and upload permission, found in the current directory or a parent.
+  output formats and exit codes. Runs on the place's latest version or on
+  `--place-version`. It never uploads place files: `--place` is a usage error
+  with `--cloud`. New options `--api-key-env`, `--config`, `--queue-timeout`
+  and `--poll-interval`. `--trace-modules` works under `--cloud` too.
+- `studio-run.toml` (`[cloud]` section) for the universe, place and key
+  variable, found in the current directory or a parent.
 - `studio-run doctor --cloud` checks the cloud settings and key with a trivial
   task.
 - Linux x86_64 builds, which run `--cloud` only: local Studio commands exit 2
@@ -51,7 +50,7 @@ All notable changes to this project are recorded here. The format follows
   could be picked instead of the zip.
 - `--place` together with `--place-id`, and `--place-id` without
   `--universe-id`, are now reported by studio-run (exit 2) rather than by the
-  argument parser, since they combine differently under `--cloud`.
+  argument parser.
 
 ## [0.1.0]
 

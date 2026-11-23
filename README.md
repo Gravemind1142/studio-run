@@ -14,11 +14,11 @@ foreground. The commands below are the same in either shell.
 
 The same script can also run in the cloud, as an
 [Open Cloud Luau Execution](https://create.roblox.com/docs/cloud/reference/features/luau-execution)
-task, with the same output format and exit codes. This works on Windows, Linux
-and macOS, with no Studio needed, so it suits CI:
+task in a place you've published, with the same output format and exit codes.
+This works on Windows, Linux and macOS, with no Studio needed, so it suits CI:
 
 ```powershell
-studio-run run smoke-test.luau --place game.rbxl --cloud
+studio-run run smoke-test.luau --cloud
 ```
 
 See [Running in the cloud](#running-in-the-cloud---cloud).
@@ -103,7 +103,7 @@ studio-run run <script.luau> [options] [-- <extra Studio args>]
 | *n* | The script returned the number *n*, or `{ exitCode = n }`. |
 | `2` | Bad command-line usage. |
 | `124` | Timed out. |
-| `125` | studio-run problem: Studio not found, failed to start, or exited without the script reporting a result. With `--cloud`: the API refused a request (key, permissions, IDs), the place upload failed, or the task failed without the script reporting a result. |
+| `125` | studio-run problem: Studio not found, failed to start, or exited without the script reporting a result. With `--cloud`: the API refused a request (key, permissions, IDs), or the task failed without the script reporting a result. |
 
 ### Writing scripts
 
@@ -231,7 +231,7 @@ In **jsonl format**, every event is printed (no filtering), one per line:
 | `source` | `script` or `other` |
 | `level` | `print`, `info`, `warn`, `error` |
 | `reason` (result) | `returned`, `error`, `compile` |
-| `code` (error) | `--cloud` failures: `auth`, `permission`, `not_found`, `invalid_request`, `rate_limited`, `server`, `http`, `network`, `upload_failed`, `task_failed`, `binary_output_lost` |
+| `code` (error) | `--cloud` failures: `auth`, `permission`, `not_found`, `invalid_request`, `rate_limited`, `server`, `http`, `network`, `task_failed`, `binary_output_lost` |
 
 If the run times out or never reports a result, there is no `result` event;
 use the exit code. An `error` event explains a `125` exit under `--cloud`.
@@ -256,8 +256,8 @@ task in a place you own, instead of in local Studio. Output, `--format`,
    [Creator Dashboard](https://create.roblox.com/dashboard/credentials),
    restricted to that experience, with:
    - **Luau execution sessions**: read and write
-     (`universe.place.luau-execution-session:read`/`:write`).
-   - **Places**: write (`universe-places:write`), if you use `--place`.
+     (`universe.place.luau-execution-session:read`/`:write`). That's all it
+     needs: studio-run never uploads or publishes places.
    - **Accepted IP addresses**: your IP. CI runners such as GitHub's have
      changing IPs and need `0.0.0.0/0`.
 3. Put the key in the `ROBLOX_API_KEY` environment variable (or another,
@@ -272,7 +272,6 @@ task in a place you own, instead of in local Studio. Output, `--format`,
    universe-id = 1234567890
    place-id = 9876543210
    api-key-env = "ROBLOX_API_KEY"   # optional
-   upload = true                    # optional: this place is disposable; let --place upload to it
    ```
 
 5. Check it: `studio-run doctor --cloud` runs a trivial task.
@@ -281,11 +280,9 @@ task in a place you own, instead of in local Studio. Output, `--format`,
 
 | Option | Default | |
 |---|---|---|
-| `--place <file>` | | Upload the file as a new **Saved** (unpublished) version of the place, then run on it. Needs `--allow-upload` or `upload = true`, because the upload becomes the place's latest version. |
-| `--place-version <n>` | latest | Run on an existing version, without uploading. |
-| no place given | | Run on the place's latest version (Saved versions included). |
+| `--place-version <n>` | latest | Run on this version of the place instead of its latest. |
 | `--timeout <s>` | 300 | The task's timeout: at most 300, Roblox's limit. |
-| `--queue-timeout <s>` | 120 | Extra time allowed for uploading and for the task to start. The run gives up after `--queue-timeout` + `--timeout`. |
+| `--queue-timeout <s>` | 120 | Extra time allowed for the task to start. The run gives up after `--queue-timeout` + `--timeout`. |
 | `--poll-interval <s>` | 2 | Seconds between task status checks. |
 | `--api-key-env <name>` | `ROBLOX_API_KEY` | Environment variable holding the key. |
 | `--config <file>` | `studio-run.toml` | Config file to use. |
@@ -294,6 +291,12 @@ task in a place you own, instead of in local Studio. Output, `--format`,
 Flags win over `studio-run.toml`. `--grace` and `--studio` are ignored with
 `--cloud`; `--visible` and extra Studio arguments are usage errors (exit 2).
 
+`--place <file>` is a usage error too. The script runs on the place as you've
+published it: studio-run doesn't upload place files. Every upload would add a
+version to the place, and it would become what Studio and Team Create open
+next. To test a place file, publish it (or a copy of the experience) from
+Studio, then run on it.
+
 ### Differences from local runs
 
 The task is a headless server, not Studio's edit mode. What we found is in
@@ -301,7 +304,7 @@ The task is a headless server, not Studio's edit mode. What we found is in
 
 - **Output arrives when the task finishes**, not while it runs: Roblox only
   makes it available then. With `--output verbose`, text format shows the
-  upload and task progress as `studio-run:` notes.
+  task's progress as `studio-run:` notes.
 - No plugins, no Plugin capability, no `loadstring`. `RunService:IsServer()`
   is true; `IsRunning()` and `IsEdit()` are false. The place's own scripts
   don't run and physics doesn't step.
@@ -317,8 +320,6 @@ The task is a headless server, not Studio's edit mode. What we found is in
   for required modules.
 - The task script, with your source and `--arg` values embedded, is limited
   to 4 MB.
-- A `.rbxlx` file has trailing whitespace trimmed before upload: Roblox rejects
-  XML with a newline after `</roblox>`.
 - **Tasks can't be cancelled.** If studio-run gives up waiting (or you press
   Ctrl+C), the task keeps running until it finishes or reaches its timeout.
 - Roblox allows 5 task creations per minute per account (across all your keys)

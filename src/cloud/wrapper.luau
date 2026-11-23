@@ -20,7 +20,7 @@ local SEND_BINARY_OUTPUT = __SR_BINARY_OUTPUT__ -- --binary-output was given
 -- The script's first vararg (`local ctx = ...`); see README, "Script context".
 -- `inputs` and `setBinaryOutput` are added below.
 local CONTEXT = __SR_CONTEXT__
--- Only known once the task runs: the latest version, or the one just uploaded.
+-- Only known once the task runs when it's the latest version.
 CONTEXT.place.version = game.PlaceVersion
 local SOURCE = __SR_SOURCE__
 

@@ -18,9 +18,9 @@ use std::time::{Duration, Instant};
 
 use common::cloud::{
     TaskOptions, binary_output, cloud_env, create_binary_input, create_task, get_task, is_done,
-    request, run_task, task_logs, task_url, upload_place, upload_place_bytes, wait_task,
+    request, run_task, task_logs, task_url, wait_task,
 };
-use common::{fixture, root};
+use common::root;
 use serde_json::{Value, json};
 
 fn probe(name: &str) -> String {
@@ -354,74 +354,17 @@ fn binary_input_and_output() {
     assert_eq!(out, reversed);
 }
 
-/// A version uploaded as Saved (unpublished) can run tasks.
-#[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
-fn saved_version() {
-    // The legacy upload rejects XML with a trailing newline (the fixture has one).
-    let raw = std::fs::read(fixture("marker.rbxlx")).unwrap();
-    assert!(raw.ends_with(b"\n"));
-    let r = upload_place_bytes(&raw, "application/xml", "Saved");
-    report(
-        "upload with trailing newline",
-        &json!({ "status": r.status, "body": r.body }),
-    );
-    assert_eq!(r.status, 400);
-    assert_eq!(r.body["message"], "Invalid Content stream");
-
-    // Trimmed, it uploads.
-    let r = upload_place(&fixture("marker.rbxlx"), "Saved");
-    report(
-        "upload Saved",
-        &json!({ "status": r.status, "body": r.body }),
-    );
-    assert!(
-        r.ok(),
-        "upload failed: HTTP {} {} (the key needs Places write; see docs/cloud-testing.md)",
-        r.status,
-        r.body
-    );
-    let version = r.body["versionNumber"].as_u64().expect("versionNumber");
-
-    let on_version = run_task(
-        &probe("marker_place.luau"),
-        &TaskOptions {
-            version: Some(version),
-            ..Default::default()
-        },
-    );
-    report("task on the Saved version", &summary(&on_version));
-    assert_eq!(
-        *result(&on_version),
-        json!({ "placeVersion": version, "marker": true, "baseplate": false })
-    );
-
-    // What "latest" means once a Saved version exists.
-    let latest = run_task(&probe("marker_place.luau"), &TaskOptions::default());
-    report("latest after upload", &summary(&latest));
-    // A task without a version runs on the latest version, Saved or not.
-    assert_eq!(result(&latest)["placeVersion"], version);
-}
-
 /// A place's own ModuleScripts can be loaded the way --trace-modules does it
-/// under --cloud (docs/design.md).
+/// under --cloud (docs/design.md). The probe creates the module itself, since
+/// the test place is an empty baseplate.
 #[test]
 #[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
 fn place_modules() {
-    let r = upload_place(&fixture("modules.rbxlx"), "Saved");
-    assert!(r.ok(), "upload failed: HTTP {} {}", r.status, r.body);
-    let version = r.body["versionNumber"].as_u64().expect("versionNumber");
-    let task = run_task(
-        &probe("place_modules.luau"),
-        &TaskOptions {
-            version: Some(version),
-            ..Default::default()
-        },
-    );
+    let task = run_task(&probe("place_modules.luau"), &TaskOptions::default());
     report("place_modules", &summary(&task));
     let r = result(&task);
 
-    // A task can read the Source of a module that's part of the place.
+    // A task can read the Source of a module in the DataModel.
     assert_eq!(r["found"], true);
     assert_eq!(r["readSource"]["ok"], true);
     assert!(r["readSource"]["length"].as_u64().unwrap() > 0);

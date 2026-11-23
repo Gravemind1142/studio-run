@@ -273,47 +273,10 @@ fn bad_args_are_usage_errors() {
 }
 
 #[test]
-fn place_files_upload_as_saved_versions_then_run_on_them() {
-    let mock = happy_mock(12, 0, |_| None);
-    let place = fixture("marker.rbxlx");
-    let o = run(
-        &mock,
-        &[
-            &script("print_warn.luau"),
-            "--place",
-            place.to_str().unwrap(),
-            "--allow-upload",
-        ],
-    );
-    assert_eq!(o.code, 0, "{}", o.stderr);
-
-    let uploads = mock.matching("POST", "/universes/v1/1/places/2/versions");
-    assert_eq!(uploads.len(), 1);
-    let up = &uploads[0];
-    assert_eq!(
-        up.target,
-        "/universes/v1/1/places/2/versions?versionType=Saved"
-    );
-    assert_eq!(up.headers.get("x-api-key").map(String::as_str), Some(KEY));
-    assert_eq!(up.headers["content-type"], "application/xml");
-    // The fixture ends with a newline, which the real endpoint rejects.
-    let file = std::fs::read(&place).unwrap();
-    assert!(file.ends_with(b"\n"));
-    assert_eq!(up.body, file.trim_ascii_end());
-
-    let creates = mock.matching("POST", "/luau-execution-session-tasks");
-    assert_eq!(
-        creates[0].path(),
-        "/cloud/v2/universes/1/places/2/versions/12/luau-execution-session-tasks"
-    );
-}
-
-#[test]
-fn place_version_runs_on_that_version_without_uploading() {
+fn place_version_runs_on_that_version() {
     let mock = happy_mock(5, 0, |_| None);
     let o = run(&mock, &[&script("print_warn.luau"), "--place-version", "5"]);
     assert_eq!(o.code, 0);
-    assert!(mock.matching("POST", "/versions").is_empty());
     assert_eq!(
         mock.matching("POST", "/luau-execution-session-tasks")[0].path(),
         "/cloud/v2/universes/1/places/2/versions/5/luau-execution-session-tasks"
@@ -356,27 +319,6 @@ fn a_rejected_key_is_an_auth_error_and_not_retried() {
             .unwrap()
             .contains("Invalid API Key")
     );
-    assert_eq!(mock.requests().len(), 1);
-}
-
-#[test]
-fn a_failed_upload_is_not_retried_and_no_task_is_created() {
-    let mock = MockApi::start(|_| Response::json(500, json!({ "message": "boom" })));
-    let place = fixture("marker.rbxlx");
-    let o = run(
-        &mock,
-        &[
-            &script("print_warn.luau"),
-            "--place",
-            place.to_str().unwrap(),
-            "--allow-upload",
-            "--format",
-            "jsonl",
-        ],
-    );
-    assert_eq!(o.code, 125);
-    assert_eq!(jsonl(&o)[0]["code"], "upload_failed");
-    // A 500 might have created a version, so it isn't retried.
     assert_eq!(mock.requests().len(), 1);
 }
 
@@ -456,11 +398,19 @@ fn usage_errors_make_no_requests() {
     for args in [
         vec![s.as_str(), "--visible"],
         vec![s.as_str(), "--timeout", "301"],
-        vec![s.as_str(), "--place", place.to_str().unwrap()], // no --allow-upload
+        vec![s.as_str(), "--place", place.to_str().unwrap()],
+        vec![s.as_str(), "--allow-upload"],
     ] {
         let o = run(&mock, &args);
         assert_eq!(o.code, 2, "{args:?}: {}", o.stderr);
     }
+    // Uploading a place file isn't supported, and says what to do instead.
+    let o = run(&mock, &[s.as_str(), "--place", place.to_str().unwrap()]);
+    assert!(
+        o.stderr.contains("--place isn't supported with --cloud"),
+        "{}",
+        o.stderr
+    );
     // No key: a usage error too.
     let o = run_with_key(&mock, &[s.as_str()], None);
     assert_eq!(o.code, 2);
