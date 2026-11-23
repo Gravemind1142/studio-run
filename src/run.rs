@@ -215,7 +215,10 @@ fn hints(tail: &LogTail) {
     }
     match tail.path() {
         Some(p) => note(&format!("Studio log: {}", p.display())),
-        None => note("couldn't find this run's Studio log in %LOCALAPPDATA%\\Roblox\\logs"),
+        None => note(&format!(
+            "couldn't find this run's Studio log in {}",
+            tail.dir().display()
+        )),
     }
 }
 

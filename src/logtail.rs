@@ -1,7 +1,8 @@
 //! Following Studio's own log file, which (unlike `--outputFile`) is written
-//! while Studio runs. Each Studio process writes its own file under
-//! `%LOCALAPPDATA%\Roblox\logs`, and its header contains the command line, so
-//! we find ours by looking for a marker unique to this run.
+//! while Studio runs. Each Studio process writes its own file, and its header
+//! contains the command line, so we find ours by looking for a marker unique
+//! to this run. Logs live in `%LOCALAPPDATA%\Roblox\logs` on Windows and
+//! `~/Library/Logs/Roblox` on macOS.
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -22,11 +23,8 @@ pub struct LogTail {
 
 impl LogTail {
     pub fn new(marker: &str) -> LogTail {
-        let dir = std::env::var_os("LOCALAPPDATA")
-            .map(|d| PathBuf::from(d).join(r"Roblox\logs"))
-            .unwrap_or_default();
         LogTail {
-            dir,
+            dir: logs_dir(),
             marker: marker.to_string(),
             since: SystemTime::now() - Duration::from_secs(5),
             path: None,
@@ -34,6 +32,11 @@ impl LogTail {
             partial: Vec::new(),
             authenticated: None,
         }
+    }
+
+    /// Directory Studio writes logs into.
+    pub fn dir(&self) -> &Path {
+        &self.dir
     }
 
     pub fn path(&self) -> Option<&Path> {
@@ -95,5 +98,24 @@ impl LogTail {
             }
         }
         None
+    }
+}
+
+fn logs_dir() -> PathBuf {
+    #[cfg(windows)]
+    {
+        std::env::var_os("LOCALAPPDATA")
+            .map(|d| PathBuf::from(d).join("Roblox").join("logs"))
+            .unwrap_or_default()
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::env::var_os("HOME")
+            .map(|h| PathBuf::from(h).join("Library/Logs/Roblox"))
+            .unwrap_or_default()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        PathBuf::new()
     }
 }

@@ -5,19 +5,29 @@ rest on is in [studio-behavior.md](studio-behavior.md).
 
 ## Hiding Studio
 
-Studio is started on a private Windows desktop (`CreateDesktopW`, then
+On Windows, Studio is started on a private desktop (`CreateDesktopW`, then
 `STARTUPINFOW.lpDesktop = "WinSta0\<name>"`). It renders and runs normally
 there, but the desktop is never shown, so no window appears and focus is never
 taken. Each run gets its own desktop, so runs can go in parallel.
 
-Studio is started suspended, put in a job object with
+It is started suspended, put in a job object with
 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, then resumed. Closing the job takes down
 Studio and every process it started, including when studio-run itself is
 killed.
 
-Studio is found via the `roblox-studio` protocol handler in the registry,
+Windows finds Studio via the `roblox-studio` protocol handler in the registry,
 which Studio's installer keeps pointing at the current version, with the
 newest `Versions\*\RobloxStudioBeta.exe` as a fallback.
+
+On macOS, Studio has its own `--background` flag, so there is no private
+desktop. Hidden launches pass that flag. Studio is started in a new process
+group, and a timeout or studio-run exiting sends `SIGKILL` to the group, which
+is the stand-in for the job object. Studio is
+`/Applications/RobloxStudio.app` (or the same bundle under `~/Applications`).
+`--background` is what Studio does today: it keeps the window out of the
+foreground. It is not a separate desktop, and a later Studio build could
+change it. What the installed Studio actually did is recorded in
+[studio-behavior.md](studio-behavior.md).
 
 ## Every run goes through a generated wrapper
 

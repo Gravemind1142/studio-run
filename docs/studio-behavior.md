@@ -7,6 +7,7 @@ and which check in [tests/behavior.rs](../tests/behavior.rs) re-tests it.
 [design.md](design.md) explains how studio-run is built around these findings.
 
 Last checked: Studio **0.748.0.7481526** on Windows 11, 2026-11-22.
+On macOS: Studio **0.748.0.7481526**, 2026-11-22 (see [macOS](#macos)).
 
 ## Re-checking after a Studio update
 
@@ -59,7 +60,7 @@ than asserted.
 | Finding | How we know | Check |
 |---|---|---|
 | A private desktop hides Studio completely. It renders and runs normally, no window appears, focus isn't taken, and several instances can run at once on separate desktops. | Every run since the first; the test suites run three at once. | Implicit in every check |
-| `--background` is Mac-only. | Studio's CLI docs. Not needed on Windows. | — |
+| `--background` is Mac-only. | Studio's CLI docs. Not needed on Windows. On macOS it's how studio-run hides Studio (see [macOS](#macos)). | — |
 | The `roblox-studio` protocol handler (`HKCU\Software\Classes\roblox-studio\shell\open\command`) points at the current `RobloxStudioBeta.exe` and stays correct across updates. | Read the key on a machine with Studio installed. Not yet observed across an update. | `locate::tests` (parsing only) |
 | The saved login is reused. The log shows `Authenticated : NO` early on, then `YES`, even when the login works. | Studio logs. | `raw_saved_login_is_reused` |
 | `--apiV2 <file>` writes the API dump and exits 0 in about a second. The V2 schema uses lowercase keys (`classes`). | `studio-run api-dump`. | `api_dump_writes_json` in tests/studio.rs |
@@ -104,6 +105,29 @@ Scripts run with command-bar permissions.
 | `setfenv(0, ...)` before `require` doesn't affect the module: each module gets a fresh environment. | `module_env.luau`. | `module_environments` |
 | After the real `require`, a module function's environment can be patched, but its top-level code has already run. | `module_env.luau`. | `module_environments` |
 | Compiling `ModuleScript.Source` with `loadstring` and our own environment captures all of a module's output, top level included. | `module_env.luau`. | `module_environments` |
+
+## macOS
+
+Checked with Studio **0.748.0.7481526** on 2026-11-22, by running both suites
+(`tests/behavior.rs` and `tests/studio.rs`) with Studio logged in. Every run
+was started with `--background`, which shows in each run's log header.
+
+- **Every finding above holds on macOS.** All 19 behaviour checks and all 14
+  end-to-end tests passed. That includes exit code 0 whatever the script does,
+  errors after a yield being lost, the buffered `--outputFile`, and log lines
+  cut at 1,022 characters.
+- `--quitAfterExecution` quit cleanly in 3 of 3 runs, as in recent Windows
+  runs. The wrapper's kill after `result` stays in place anyway.
+- Studio is `/Applications/RobloxStudio.app/Contents/MacOS/RobloxStudio`. Its
+  log is `~/Library/Logs/Roblox/<version>_<time>_Studio_<id>_last.log`, with
+  the same `Command line:` header as on Windows.
+- Without a login, a raw run kept Studio open until `--timeout`, the log
+  never showed `Authenticated : YES`, and `raw_saved_login_is_reused` failed.
+- **`--background` showed nothing**: watching a `studio-run doctor` run, no
+  window appeared and focus wasn't taken. Studio's docs promise only that it
+  doesn't bring its window to the front, and unlike the Windows private
+  desktop, no check verifies this. Watch a `studio-run doctor` after a Studio
+  update.
 
 ## Corrections
 

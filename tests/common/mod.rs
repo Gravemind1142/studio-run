@@ -95,7 +95,7 @@ pub fn temp_dir(test: &str) -> PathBuf {
 /// Studio's log for the run whose command line contains `marker`, if it has
 /// started one since `since`.
 pub fn find_studio_log(marker: &str, since: SystemTime) -> Option<PathBuf> {
-    let dir = PathBuf::from(std::env::var_os("LOCALAPPDATA")?).join("Roblox/logs");
+    let dir = logs_dir()?;
     let since = since - Duration::from_secs(5);
     std::fs::read_dir(dir)
         .ok()?
@@ -110,6 +110,21 @@ pub fn find_studio_log(marker: &str, since: SystemTime) -> Option<PathBuf> {
                 .is_ok_and(|t| t >= since)
         })
         .find(|p| header(p).contains(marker))
+}
+
+fn logs_dir() -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        Some(PathBuf::from(std::env::var_os("LOCALAPPDATA")?).join("Roblox/logs"))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        Some(PathBuf::from(std::env::var_os("HOME")?).join("Library/Logs/Roblox"))
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        None
+    }
 }
 
 fn header(path: &Path) -> String {
