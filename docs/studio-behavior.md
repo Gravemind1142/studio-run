@@ -123,10 +123,11 @@ was started with `--background`, which shows in each run's log header.
   the same `Command line:` header as on Windows.
 - Without a login, a raw run kept Studio open until `--timeout`, the log
   never showed `Authenticated : YES`, and `raw_saved_login_is_reused` failed.
-- **Not yet observed:** whether `--background` keeps every Studio window
-  out of the foreground. Studio's docs promise only that it doesn't bring its
-  window to the front. Unlike the Windows private desktop, no check verifies
-  this. Watch a `studio-run doctor` after a Studio update.
+- **`--background` showed nothing**: watching a `studio-run doctor` run, no
+  window appeared and focus wasn't taken. Studio's docs promise only that it
+  doesn't bring its window to the front, and unlike the Windows private
+  desktop, no check verifies this. Watch a `studio-run doctor` after a Studio
+  update.
 
 ## Corrections
 
