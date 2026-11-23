@@ -278,3 +278,28 @@ fn usage_errors_exit_2() {
         assert_eq!(o.code, 2, "{args:?}: {}", o.stderr);
     }
 }
+
+/// Inputs go up packed in the task's binary input; the binary output comes
+/// back after the events in the task's.
+#[test]
+#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+fn inputs_and_binary_output_round_trip() {
+    let (inputs, out, expected) = common::binary_io_case("cloud-io", 1024 * 1024);
+    let mut args = vec![];
+    for i in &inputs {
+        args.extend(["--input", i.as_str()]);
+    }
+    args.extend(["--binary-output", out.to_str().unwrap()]);
+    let o = run_jsonl("binary_io.luau", &args);
+    assert_eq!(o.code, 0);
+    assert_eq!(
+        o.script_output("print"),
+        [format!("a,b {}", expected.len())]
+    );
+    let got = std::fs::read(&out).unwrap();
+    assert!(
+        got == expected,
+        "binary output differs ({} bytes)",
+        got.len()
+    );
+}

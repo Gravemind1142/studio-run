@@ -208,3 +208,43 @@ fn api_dump_writes_json() {
     assert!(json["classes"].as_array().is_some_and(|c| !c.is_empty()));
     let _ = std::fs::remove_file(out);
 }
+
+#[test]
+#[ignore]
+fn inputs_and_binary_output_round_trip() {
+    // b is 1 MiB, so the binary output takes thousands of `binary` events.
+    let (inputs, out, expected) = common::binary_io_case("local-io", 1024 * 1024);
+    let mut args = vec![];
+    for i in &inputs {
+        args.extend(["--input", i.as_str()]);
+    }
+    args.extend(["--binary-output", out.to_str().unwrap()]);
+    let o = run_jsonl("binary_io.luau", &args);
+    assert_eq!(o.code, 0);
+    assert_eq!(
+        o.script_output("print"),
+        [format!("a,b {}", expected.len())]
+    );
+    // The `binary` events aren't printed, and the sentinel in input `a` didn't
+    // end the run early through Studio's echo of the wrapper.
+    assert!(o.events().iter().all(|e| e["kind"] != "binary"));
+    let got = std::fs::read(&out).unwrap();
+    assert!(
+        got == expected,
+        "binary output differs ({} bytes)",
+        got.len()
+    );
+}
+
+#[test]
+#[ignore]
+fn binary_output_is_empty_when_the_script_sets_none() {
+    let (_, out, _) = common::binary_io_case("local-empty", 0);
+    std::fs::write(&out, b"stale").unwrap();
+    let o = run_jsonl(
+        "print_warn.luau",
+        &["--binary-output", out.to_str().unwrap()],
+    );
+    assert_eq!(o.code, 0);
+    assert_eq!(std::fs::read(&out).unwrap(), b"");
+}

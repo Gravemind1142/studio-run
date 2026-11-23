@@ -437,3 +437,155 @@ fn usage_errors_make_no_requests() {
 
     assert!(mock.requests().is_empty(), "{:?}", mock.requests());
 }
+
+/// What the cloud wrapper returns: a header, the events, the binary output.
+fn task_output(events: &[String], data: &[u8]) -> Vec<u8> {
+    let events = events.join("\n");
+    let mut out = b"SRB1".to_vec();
+    out.extend_from_slice(&(events.len() as u32).to_le_bytes());
+    out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    out.extend_from_slice(events.as_bytes());
+    out.extend_from_slice(data);
+    out
+}
+
+#[test]
+fn inputs_upload_as_one_binary_input_and_binary_output_is_written() {
+    let base = Arc::new(OnceLock::<String>::new());
+    let b = base.clone();
+    let mock = MockApi::start(move |r: &Request| {
+        let base = b.get().unwrap();
+        match (r.method.as_str(), r.path()) {
+            ("POST", "/cloud/v2/universes/1/luau-execution-session-task-binary-inputs") => {
+                Response::json(
+                    200,
+                    json!({
+                        "path": "universes/1/luau-execution-session-task-binary-inputs/i1",
+                        "size": r.json()["size"],
+                        "uploadUri": format!("{base}/upload/i1"),
+                    }),
+                )
+            }
+            ("PUT", "/upload/i1") => Response::bytes(Vec::new()),
+            ("POST", CREATE_LATEST) => created(7),
+            ("GET", p) if p == format!("/cloud/v2/{}", task_path(7)) => complete(base, 7, 0),
+            ("GET", "/download/t1") => Response::bytes(task_output(&events(0), b"\x00out\xff")),
+            _ => Response::json(404, json!({ "message": "mock: no route" })),
+        }
+    });
+    base.set(mock.base.clone()).unwrap();
+
+    let (inputs, out, _) = common::binary_io_case("mock-io", 10);
+    let o = run(
+        &mock,
+        &[
+            &script("print_warn.luau"),
+            "--input",
+            &inputs[0],
+            "--input",
+            &inputs[1],
+            "--binary-output",
+            out.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    assert_eq!(o.stdout.trim(), "hello");
+    assert_eq!(std::fs::read(&out).unwrap(), b"\x00out\xff");
+
+    // One input, sized to and holding both files, packed with an index.
+    let a = std::fs::read(inputs[0].split_once('=').unwrap().1).unwrap();
+    let b = std::fs::read(inputs[1].split_once('=').unwrap().1).unwrap();
+    let mut packed = b"SRI1\x02\0\0\0".to_vec();
+    for (name, data) in [("a", &a), ("b", &b)] {
+        packed.extend_from_slice(&(name.len() as u32).to_le_bytes());
+        packed.extend_from_slice(name.as_bytes());
+        packed.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        packed.extend_from_slice(data);
+    }
+    let creates = mock.matching("POST", "/luau-execution-session-task-binary-inputs");
+    assert_eq!(creates.len(), 1);
+    assert_eq!(creates[0].json(), json!({ "size": packed.len() }));
+    assert_eq!(
+        creates[0].headers.get("x-api-key").map(String::as_str),
+        Some(KEY)
+    );
+    // The presigned upload gets the bytes with PUT, and never the key.
+    let uploads = mock.matching("PUT", "/upload/i1");
+    assert_eq!(uploads.len(), 1);
+    assert!(!uploads[0].headers.contains_key("x-api-key"));
+    assert!(uploads[0].body == packed);
+
+    let task = mock.matching("POST", "/luau-execution-session-tasks")[0].json();
+    assert_eq!(
+        task["binaryInput"],
+        "universes/1/luau-execution-session-task-binary-inputs/i1"
+    );
+    assert!(
+        task["script"]
+            .as_str()
+            .unwrap()
+            .contains("local SEND_BINARY_OUTPUT = true")
+    );
+}
+
+#[test]
+fn without_inputs_no_binary_input_is_created() {
+    let mock = happy_mock(7, 0, |_| None);
+    let o = run(&mock, &[&script("print_warn.luau")]);
+    assert_eq!(o.code, 0);
+    assert!(
+        mock.matching("POST", "/luau-execution-session-task-binary-inputs")
+            .is_empty()
+    );
+}
+
+#[test]
+fn binary_output_from_logs_only_is_a_tool_error() {
+    // The download fails, so the events come from the logs, without the binary output.
+    let base = Arc::new(OnceLock::<String>::new());
+    let b = base.clone();
+    let mock = MockApi::start(move |r: &Request| {
+        let base = b.get().unwrap();
+        match (r.method.as_str(), r.path()) {
+            ("POST", CREATE_LATEST) => created(7),
+            ("GET", p) if p == format!("/cloud/v2/{}", task_path(7)) => complete(base, 7, 0),
+            ("GET", "/download/t1") => Response::json(404, json!({ "message": "gone" })),
+            ("GET", p) if p.ends_with("/logs") => Response::json(
+                200,
+                json!({ "luauExecutionSessionTaskLogs": [{ "messages": events(0) }] }),
+            ),
+            _ => Response::json(404, json!({ "message": "mock: no route" })),
+        }
+    });
+    base.set(mock.base.clone()).unwrap();
+    let (_, out, _) = common::binary_io_case("mock-lost", 0);
+    let o = run(
+        &mock,
+        &[
+            &script("print_warn.luau"),
+            "--binary-output",
+            out.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(o.code, 125, "{}", o.stderr);
+    assert!(o.stderr.contains("binary output"), "{}", o.stderr);
+    assert!(!out.exists());
+}
+
+#[test]
+fn bad_inputs_are_usage_errors() {
+    let mock = happy_mock(7, 0, |_| None);
+    let missing = std::env::temp_dir().join("studio-run-test-no-such-input");
+    for args in [
+        vec!["--input", "noequals"],
+        vec!["--input", "=x"],
+        vec!["--input", &format!("a={}", missing.display())],
+    ] {
+        let mut all = vec![script("print_warn.luau")];
+        all.extend(args.iter().map(|s| s.to_string()));
+        let all: Vec<&str> = all.iter().map(String::as_str).collect();
+        let o = run(&mock, &all);
+        assert_eq!(o.code, 2, "{args:?}: {}", o.stderr);
+    }
+    assert!(mock.requests().is_empty());
+}

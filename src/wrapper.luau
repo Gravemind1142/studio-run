@@ -3,16 +3,20 @@
 -- what happens as structured events: one sentinel-prefixed JSON line each,
 -- kept short enough to fit in a single Studio log line.
 
-local SOURCE = __SR_SOURCE__
 local CHUNK_NAME = __SR_CHUNK__ -- "=name.luau": name used in errors/tracebacks
 local CAPTURE_PRINT = __SR_CAPTURE__
 local TRACE_MODULES = __SR_TRACE__
+local SEND_BINARY_OUTPUT = __SR_BINARY_OUTPUT__ -- --binary-output was given
+local INPUTS = __SR_INPUTS__ -- { [name] = bytes } from --input
+local SOURCE = __SR_SOURCE__
 
 local PROTOCOL = 1
 -- Built from pieces so Studio's echo of this file never contains it.
 local SENTINEL = "@@studio" .. "-run@@"
 local ECHO_PREFIX = "> --[[studio-run wrapper]]"
 local BUDGET = 600 -- max JSON-encoded bytes of one message piece
+local BINARY_PIECE = 512 -- base64 characters per `binary` event
+local MAX_BINARY_OUTPUT = 8 * 1024 * 1024
 
 local HttpService = game:GetService("HttpService")
 local LogService = game:GetService("LogService")
@@ -226,6 +230,93 @@ tracedRequire = function(target)
 end
 
 ---------------------------------------------------------------------------
+-- The script context: the script's first vararg
+---------------------------------------------------------------------------
+
+local inputs = {}
+for name, bytes in INPUTS do
+	inputs[name] = buffer.fromstring(bytes)
+end
+INPUTS = nil
+
+local binaryOutput = nil
+
+local ctx = table.freeze({
+	inputs = table.freeze(inputs),
+	setBinaryOutput = function(data)
+		if type(data) == "string" then
+			data = buffer.fromstring(data)
+		elseif typeof(data) ~= "buffer" then
+			error("ctx.setBinaryOutput expects a buffer, got " .. typeof(data), 2)
+		end
+		if buffer.len(data) > MAX_BINARY_OUTPUT then
+			error(
+				string.format(
+					"binary output is %d bytes; the limit is %d bytes (8 MiB) in local Studio",
+					buffer.len(data),
+					MAX_BINARY_OUTPUT
+				),
+				2
+			)
+		end
+		binaryOutput = data
+	end,
+})
+
+-- Base64 with the URL-safe alphabet, so JSON never needs to escape it.
+local B64 = buffer.fromstring("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+local PAD = 61 -- "="
+
+local function base64(data)
+	local n = buffer.len(data)
+	local out = buffer.create(math.ceil(n / 3) * 4)
+	local o = 0
+	local i = 0
+	while i + 3 <= n do
+		local v = bit32.bor(
+			bit32.lshift(buffer.readu8(data, i), 16),
+			bit32.lshift(buffer.readu8(data, i + 1), 8),
+			buffer.readu8(data, i + 2)
+		)
+		buffer.writeu8(out, o, buffer.readu8(B64, bit32.rshift(v, 18)))
+		buffer.writeu8(out, o + 1, buffer.readu8(B64, bit32.band(bit32.rshift(v, 12), 63)))
+		buffer.writeu8(out, o + 2, buffer.readu8(B64, bit32.band(bit32.rshift(v, 6), 63)))
+		buffer.writeu8(out, o + 3, buffer.readu8(B64, bit32.band(v, 63)))
+		i += 3
+		o += 4
+	end
+	local rest = n - i
+	if rest > 0 then
+		local v = bit32.lshift(buffer.readu8(data, i), 16)
+		if rest == 2 then
+			v = bit32.bor(v, bit32.lshift(buffer.readu8(data, i + 1), 8))
+		end
+		buffer.writeu8(out, o, buffer.readu8(B64, bit32.rshift(v, 18)))
+		buffer.writeu8(out, o + 1, buffer.readu8(B64, bit32.band(bit32.rshift(v, 12), 63)))
+		buffer.writeu8(out, o + 2, if rest == 2 then buffer.readu8(B64, bit32.band(bit32.rshift(v, 6), 63)) else PAD)
+		buffer.writeu8(out, o + 3, PAD)
+	end
+	return buffer.tostring(out)
+end
+
+-- The binary output as `binary` events, in pieces joined like split messages.
+local function sendBinary(data)
+	local text = base64(data)
+	local n = #text
+	if n == 0 then
+		send({ kind = "binary", message = "" })
+		return
+	end
+	for i = 1, n, BINARY_PIECE do
+		send({
+			kind = "binary",
+			message = string.sub(text, i, i + BINARY_PIECE - 1),
+			more = if i + BINARY_PIECE <= n then true else nil,
+		})
+	end
+end
+
+---------------------------------------------------------------------------
 -- Run
 ---------------------------------------------------------------------------
 
@@ -266,7 +357,7 @@ else
 	end
 	local packed = table.pack(xpcall(fn, function(e)
 		return { message = tostring(e), traceback = cleanTraceback(debug.traceback(nil, 2)) }
-	end))
+	end, ctx))
 	if packed[1] then
 		result = { ok = true, exitCode = exitCodeFrom(packed[2]), reason = "returned" }
 	else
@@ -283,5 +374,9 @@ end
 -- Let deferred MessageOut / ScriptContext.Error events arrive first.
 task.wait(0.1)
 task.wait(0.1)
+
+if SEND_BINARY_OUTPUT and binaryOutput then
+	sendBinary(binaryOutput)
+end
 
 emit({ kind = "result", ok = result.ok, exitCode = result.exitCode, reason = result.reason })

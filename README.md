@@ -86,6 +86,8 @@ studio-run run <script.luau> [options] [-- <extra Studio args>]
 | `--output script\|normal\|verbose` | normal | Which output to show in text format (see below). |
 | `--no-capture` | | Don't replace `print`/`warn` in the script's environment. |
 | `--trace-modules` | | Attribute required modules' output to them. See the caveats below. |
+| `--input <name>=<file>` | | Pass the file to the script as the buffer `ctx.inputs[name]`. Repeatable; at most 100 MiB in total. See [Binary input and output](#binary-input-and-output). |
+| `--binary-output <file>` | | Write the buffer the script passes to `ctx.setBinaryOutput` to the file. At most 8 MiB locally, 256 MiB with `--cloud`. |
 | `--visible` | | Show Studio's window on your desktop, for debugging. |
 | `--keep-temp` | | Keep the generated wrapper and output file. |
 | `--studio <exe>` | auto | Path to the Studio executable, or on macOS the `.app` bundle. Also `STUDIO_EXE`. |
@@ -118,6 +120,38 @@ The script runs in Studio's edit mode with command-bar permissions, like
 - `script` is `nil`.
 - A UTF-8 byte-order mark at the start of the file is ignored. Studio itself
   silently refuses to run a script that starts with one.
+- The script's first vararg is a **context** table, `local ctx = ...`. For now
+  it holds `ctx.inputs` and `ctx.setBinaryOutput` (below).
+
+### Binary input and output
+
+`--input name=<file>` (repeatable) passes files to the script as buffers, and
+`--binary-output <file>` writes one buffer back, the same way locally and with
+`--cloud`:
+
+```luau
+local ctx = ...
+local data = ctx.inputs.place -- from --input place=build.rbxl: a buffer
+ctx.setBinaryOutput(buffer.fromstring("result")) -- a buffer or a string
+```
+
+```powershell
+studio-run run convert.luau --input place=build.rbxl --binary-output out.bin
+```
+
+- `ctx.inputs` maps each name to a buffer, and is empty without `--input`.
+  Inputs are at most 100 MiB in total.
+- The output is what the buffer holds when the script finishes. Calling
+  `ctx.setBinaryOutput` again replaces it. It's at most 8 MiB locally and
+  256 MiB with `--cloud`; a larger buffer is an error in the script.
+- The file is written once the script reports a result, even if it failed,
+  and is empty if the script set no output. If the script never reports a
+  result (a timeout, or exit code 125), the file is left alone.
+- Without `--binary-output`, `ctx.setBinaryOutput` still works, but the output
+  isn't sent back.
+- Locally, inputs are embedded in the generated wrapper, and the output comes
+  back through Studio's log, base64-encoded, so a large output adds a few
+  seconds to a run (8 MiB in and out takes about 16 s in all).
 
 ## Output
 
@@ -160,7 +194,7 @@ In **jsonl format**, every event is printed (no filtering), one per line:
 | `source` | `script` or `other` |
 | `level` | `print`, `info`, `warn`, `error` |
 | `reason` (result) | `returned`, `error`, `compile` |
-| `code` (error) | `--cloud` failures: `auth`, `permission`, `not_found`, `invalid_request`, `rate_limited`, `server`, `http`, `network`, `upload_failed`, `task_failed` |
+| `code` (error) | `--cloud` failures: `auth`, `permission`, `not_found`, `invalid_request`, `rate_limited`, `server`, `http`, `network`, `upload_failed`, `task_failed`, `binary_output_lost` |
 
 If the run times out or never reports a result, there is no `result` event;
 use the exit code. An `error` event explains a `125` exit under `--cloud`.
@@ -238,6 +272,9 @@ The task is a headless server, not Studio's edit mode. What we found is in
 - HttpService follows the experience's **Allow HTTP Requests** setting.
 - `script` is `nil`, as locally. Errors and tracebacks point at your file and
   line, as locally.
+- `--input` files are uploaded, packed together, as the task's binary input
+  before the task is created; the binary output comes back with the task's
+  output.
 - Your script is compiled as the body of a function, so a top-level
   `export type` is a compile error under `--cloud`.
 - A `.rbxlx` file has trailing whitespace trimmed before upload: Roblox rejects
