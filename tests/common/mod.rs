@@ -3,6 +3,7 @@
 
 pub mod cloud;
 pub mod mock;
+pub mod structured_logs;
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

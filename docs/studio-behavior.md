@@ -106,6 +106,22 @@ Scripts run with command-bar permissions.
 | After the real `require`, a module function's environment can be patched, but its top-level code has already run. | `module_env.luau`. | `module_environments` |
 | Compiling `ModuleScript.Source` with `loadstring` and our own environment captures all of a module's output, top level included. | `module_env.luau`. | `module_environments` |
 
+### Structured logging
+
+Roblox added `LogService:Output`/`Info`/`Warn`/`Error`/`Log(message, context)` and
+`LogService:GetLogger(name)`, whose `Logger` has the same methods and its own
+`MessageOut`. The same findings hold for Luau Execution tasks
+([cloud-behavior.md](cloud-behavior.md#structured-logging)).
+
+| Finding | How we know | Check |
+|---|---|---|
+| **`MessageOut` passes the context as a third argument**, and **always a table**: empty for `print`, `warn`, a call with no context, and a context that isn't a table. The message text never includes the context. | `structured_logs.luau`. | `structured_logging` |
+| **The context is flattened** to string keys and string, number or boolean values. Number keys become strings, a `Vector3` becomes `"1, 2, 3"`, an Instance its `Name`, a nested (or cyclic) table `"table: 0x…"`, a function `"<function>"`. | `structured_logs.luau`. | `structured_logging` |
+| `Info`, `Output`, `Warn` and `Log` use `MessageInfo`, `MessageOutput`, `MessageWarning` and the given type. | `structured_logs.luau`. | `structured_logging` |
+| **`LogService:Error` raises, like `error()`**, and logs nothing itself. `Logger:Error` logs at `MessageError` and doesn't raise. Neither reaches `ScriptContext.Error`. | `structured_logs.luau`. | `structured_logging` |
+| **A Logger's messages also reach `LogService.MessageOut`, with nothing naming the logger**: the context is only what the call passed. A logger's own `MessageOut` also gets its child loggers' messages. `GetLogger` returns the same Logger for the same name; a child's `FullPath` is `Parent.Child`. | `structured_logs.luau`. | `structured_logging` |
+| `GetLogHistory` entries keep the context (`context`, absent for plain `print`) and name the logger (`loggerFullPath`). | `structured_logs.luau`. | `structured_logging` |
+
 ## macOS
 
 Checked with Studio **0.748.0.7481526** on 2026-11-22, by running both suites

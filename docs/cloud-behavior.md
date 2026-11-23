@@ -98,6 +98,13 @@ ModuleScript named after the original's full name, with the original's
 | Tasks start at once on an idle place (`PROCESSING` on the first poll), and a trivial task completes about 1 s after it's created. | Every task's `createTime`/`updateTime`. | — |
 | Each `print` is one log message; `STRUCTURED` gives its type (`OUTPUT`, `WARNING`, `ERROR`) and time, `FLAT` just the text. | `slow.luau`. | `logs_while_running_and_cancel` |
 
+### Structured logging
+
+| Finding | How we know | Check |
+|---|---|---|
+| Inside a task, structured logging behaves as in Studio ([studio-behavior.md](studio-behavior.md#structured-logging)): the context reaches `MessageOut` as a flattened table, `LogService:Error` raises, and Loggers report through `LogService.MessageOut` without naming the logger. | `structured_logs.luau`. | `structured_logs` |
+| **The task's own logs drop the context**: a `STRUCTURED` message from `LogService:Info(msg, ctx)` has only `createTime`, `message` and `messageType` (`INFO` here). | `structured_logs.luau`. | `structured_logs` |
+
 ### Binary input and output
 
 | Finding | How we know | Check |

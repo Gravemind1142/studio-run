@@ -328,3 +328,11 @@ fn inputs_and_binary_output_round_trip() {
         got.len()
     );
 }
+
+#[test]
+#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+fn structured_log_context_is_reported() {
+    let o = run_jsonl("structured_logs.luau", &[]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    common::structured_logs::check_fixture(&o.events());
+}
