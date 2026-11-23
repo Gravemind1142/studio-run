@@ -23,10 +23,8 @@ All notable changes to this project are recorded here. The format follows
   an Open Cloud Luau Execution task instead of in local Studio, with the same
   output formats and exit codes. Runs on the place's latest version or on
   `--place-version`. It never uploads place files: `--place` is a usage error
-  with `--cloud`. New options `--api-key-env`, `--config`, `--queue-timeout`
-  and `--poll-interval`. `--trace-modules` works under `--cloud` too.
-- `studio-run.toml` (`[cloud]` section) for the universe, place and key
-  variable, found in the current directory or a parent.
+  with `--cloud`. New options `--api-key-env`, `--queue-timeout` and
+  `--poll-interval`. `--trace-modules` works under `--cloud` too.
 - `studio-run doctor --cloud` checks the cloud settings and key with a trivial
   task.
 - Linux x86_64 builds, which run `--cloud` only: local Studio commands exit 2

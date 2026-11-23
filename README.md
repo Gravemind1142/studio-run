@@ -263,18 +263,10 @@ task in a place you own, instead of in local Studio. Output, `--format`,
 3. Put the key in the `ROBLOX_API_KEY` environment variable (or another,
    named with `--api-key-env`). The key is never accepted as an argument, so it
    can't end up in shell history or CI logs.
-4. Name the place, either with `--universe-id` and `--place-id` or in a
-   `studio-run.toml` in your project (found in the current directory or a
-   parent):
-
-   ```toml
-   [cloud]
-   universe-id = 1234567890
-   place-id = 9876543210
-   api-key-env = "ROBLOX_API_KEY"   # optional
-   ```
-
-5. Check it: `studio-run doctor --cloud` runs a trivial task.
+4. Name the place with `--universe-id` and `--place-id`. In CI, pass them
+   from secrets.
+5. Check it: `studio-run doctor --cloud --universe-id <id> --place-id <id>`
+   runs a trivial task.
 
 ### Options
 
@@ -285,11 +277,10 @@ task in a place you own, instead of in local Studio. Output, `--format`,
 | `--queue-timeout <s>` | 120 | Extra time allowed for the task to start. The run gives up after `--queue-timeout` + `--timeout`. |
 | `--poll-interval <s>` | 2 | Seconds between task status checks. |
 | `--api-key-env <name>` | `ROBLOX_API_KEY` | Environment variable holding the key. |
-| `--config <file>` | `studio-run.toml` | Config file to use. |
 | `--keep-temp` | | Keep the generated task script and the final task (without its download URL). |
 
-Flags win over `studio-run.toml`. `--grace` and `--studio` are ignored with
-`--cloud`; `--visible` and extra Studio arguments are usage errors (exit 2).
+`--grace` and `--studio` are ignored with `--cloud`; `--visible` and extra
+Studio arguments are usage errors (exit 2).
 
 `--place <file>` is a usage error too. The script runs on the place as you've
 published it: studio-run doesn't upload place files. Every upload would add a
