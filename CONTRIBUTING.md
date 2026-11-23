@@ -60,6 +60,12 @@ cargo run -- raw -- --task RunScript --runScriptFile C:\full\path\probe.luau --o
 Once it tells you something studio-run depends on, add a check for it to
 `tests/behavior.rs` and a row to the findings.
 
+## Testing against Open Cloud
+
+The cloud host needs your own test experience and API key, set in a
+gitignored `.env` file (copy `.env.example`). [docs/cloud-testing.md](docs/cloud-testing.md) walks
+through the setup.
+
 ## Pull requests
 
 - Keep each pull request to one change.
