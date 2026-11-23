@@ -3,7 +3,7 @@
 //! Locally, inputs are embedded in the wrapper as string literals and the
 //! output comes back base64-encoded in `binary` events. Under `--cloud`, the
 //! inputs are packed into the task's one binary input, and the output follows
-//! the events in the task's binary output. See docs/design.md.
+//! the events in the task's binary output. See docs/internals/design.md.
 
 use std::path::Path;
 

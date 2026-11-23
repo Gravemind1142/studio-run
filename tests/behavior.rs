@@ -1,6 +1,6 @@
 //! Checks that Roblox Studio still behaves the way studio-run relies on.
 //!
-//! Each test checks one finding from docs/studio-behavior.md. When one fails
+//! Each test checks one finding from docs/internals/studio-behavior.md. When one fails
 //! after a Studio update, Studio has changed: update the doc, and studio-run if
 //! needed. Needs Studio installed and logged in; ignored by default.
 //!

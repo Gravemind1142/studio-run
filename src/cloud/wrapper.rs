@@ -9,7 +9,7 @@ pub const MAX_SCRIPT_BYTES: usize = 4 * 1024 * 1024;
 
 /// Build the task script around `source`. `chunk_name` (e.g. `test.luau`)
 /// names the ModuleScript the source is compiled as. `trace_modules`: load
-/// required ModuleScripts ourselves (opt-in; see README). `binary_output`:
+/// required ModuleScripts ourselves (opt-in; see docs/guide/test-runners.md). `binary_output`:
 /// return the script's binary output (`--binary-output`). `context` is the
 /// script's context as a Luau table ([`crate::wrapper::ScriptContext::to_lua`]).
 pub fn generate(

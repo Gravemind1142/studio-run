@@ -32,11 +32,11 @@ All notable changes to this project are recorded here. The format follows
 - jsonl: the `start` event has `host` (`local` or `cloud`), and with `--cloud`
   the universe, place, place version and task. A new `error` event with a
   stable `code` explains a `125` exit under `--cloud`.
-- A "cloud host" section in [docs/design.md](docs/design.md);
-  [docs/cloud-behavior.md](docs/cloud-behavior.md), how Luau Execution tasks
+- A "cloud host" section in [docs/internals/design.md](docs/internals/design.md);
+  [docs/internals/cloud-behavior.md](docs/internals/cloud-behavior.md), how Luau Execution tasks
   behave, re-checked by `tests/cloud_behavior.rs`; and `tests/cloud.rs`,
   end-to-end tests of `--cloud`. Both need a test experience and key of your
-  own ([docs/cloud-testing.md](docs/cloud-testing.md)); a weekly workflow runs
+  own ([docs/internals/cloud-testing.md](docs/internals/cloud-testing.md)); a weekly workflow runs
   them against the real API. `tests/cloud_mock.rs` checks `--cloud` against a
   local mock of the API in every `cargo test`, so pull requests are covered
   without a key.
@@ -49,6 +49,11 @@ All notable changes to this project are recorded here. The format follows
 - `--place` together with `--place-id`, and `--place-id` without
   `--universe-id`, are now reported by studio-run (exit 2) rather than by the
   argument parser.
+- The documentation is reorganised. The README is now a short introduction,
+  and the rest lives in `docs/`: a guide, a command-line and event reference,
+  and the internals (the existing design and behaviour notes, now in
+  `docs/internals/`, plus the release steps). Links to the old README
+  sections and to `docs/design.md` and the other notes need updating.
 
 ## [0.1.0]
 
@@ -70,7 +75,7 @@ First release.
 - `studio-run doctor` to check that Studio can run a script on this machine.
 - A hidden `studio-run raw` command that launches hidden Studio with your own
   arguments and no wrapper, for investigating Studio's behaviour.
-- [docs/studio-behavior.md](docs/studio-behavior.md), recording how Studio's
+- [docs/internals/studio-behavior.md](docs/internals/studio-behavior.md), recording how Studio's
   CLI behaves, and `tests/behavior.rs`, which re-checks it against the
   installed Studio.
 - Release builds for Windows x86_64, installable with Foreman, Rokit or Aftman.

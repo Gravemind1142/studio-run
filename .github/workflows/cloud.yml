@@ -2,7 +2,7 @@ name: Cloud tests
 
 # Weekly, runs the --cloud end-to-end tests and the Open Cloud behaviour checks
 # against the real API, with the maintainers' test experience
-# (docs/cloud-testing.md). This catches Roblox changing the API. Pull requests
+# (docs/internals/cloud-testing.md). This catches Roblox changing the API. Pull requests
 # are covered without the API by tests/cloud_mock.rs, which runs in ci.yml.
 #
 # Never on pull requests: their code mustn't get the key, and forks don't get
@@ -39,7 +39,7 @@ jobs:
         id: secrets
         run: |
           if [ -z "$STUDIO_RUN_TEST_API_KEY" ]; then
-            echo "::notice::Cloud test secrets aren't set; skipping. See docs/cloud-testing.md."
+            echo "::notice::Cloud test secrets aren't set; skipping. See docs/internals/cloud-testing.md."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/checkout@v7
@@ -68,7 +68,7 @@ jobs:
           body="The scheduled run against Open Cloud failed: $RUN_URL
 
           Check the log. A failure usually means one of:
-          - Roblox changed the Luau Execution API: update docs/cloud-behavior.md, and studio-run if it relied on the old behaviour.
+          - Roblox changed the Luau Execution API: update docs/internals/cloud-behavior.md, and studio-run if it relied on the old behaviour.
           - The API key expired, lost a permission or its IP allowance (needs 0.0.0.0/0): replace the STUDIO_RUN_TEST_API_KEY secret.
           - The test experience was changed or deleted."
           existing=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq '.[0].number')

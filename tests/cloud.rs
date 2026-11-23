@@ -2,7 +2,7 @@
 //! Execution tasks. They mirror tests/studio.rs, so the same scripts are
 //! checked on both hosts.
 //!
-//! They need the test experience and key from docs/cloud-testing.md, and are
+//! They need the test experience and key from docs/internals/cloud-testing.md, and are
 //! ignored by default:
 //!
 //!     cargo test --test cloud -- --ignored --test-threads=1
@@ -93,7 +93,7 @@ impl Events for Output {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn text_output_goes_to_stdout_and_stderr() {
     let path = fixture("print_warn.luau");
     let o = cloud_run(&["run", path.to_str().unwrap(), "--output", "script"]);
@@ -103,7 +103,7 @@ fn text_output_goes_to_stdout_and_stderr() {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn events_are_categorized_and_start_names_the_task() {
     let o = run_jsonl("print_warn.luau", &[]);
     assert_eq!(o.code, 0);
@@ -124,7 +124,7 @@ fn events_are_categorized_and_start_names_the_task() {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn uncaught_error_fails_with_location() {
     let o = run_jsonl("error.luau", &[]);
     assert_eq!(o.code, 1);
@@ -137,14 +137,14 @@ fn uncaught_error_fails_with_location() {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn return_value_sets_exit_code() {
     assert_eq!(run_jsonl("exit_code.luau", &[]).code, 7);
     assert_eq!(run_jsonl("return_false.luau", &[]).code, 1);
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn script_gets_its_context() {
     let o = run_jsonl("context.luau", &["--arg", "name=a=b"]);
     assert_eq!(o.code, 0);
@@ -159,7 +159,7 @@ fn script_gets_its_context() {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn compile_error_fails() {
     let o = run_jsonl("compile_error.luau", &[]);
     assert_eq!(o.code, 1);
@@ -169,7 +169,7 @@ fn compile_error_fails() {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn spawned_thread_errors_are_attributed_once() {
     let o = run_jsonl("async_error.luau", &[]);
     assert_eq!(o.code, 0);
@@ -190,7 +190,7 @@ fn spawned_thread_errors_are_attributed_once() {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn long_messages_round_trip() {
     let o = run_jsonl("long_output.luau", &[]);
     let prints = o.script_output("print");
@@ -200,7 +200,7 @@ fn long_messages_round_trip() {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn unicode_and_bom() {
     assert_eq!(
         run_jsonl("unicode.luau", &[]).script_output("print"),
@@ -213,7 +213,7 @@ fn unicode_and_bom() {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn no_capture_reports_prints_as_other() {
     let o = run_jsonl("print_warn.luau", &["--no-capture"]);
     assert_eq!(o.code, 0);
@@ -226,7 +226,7 @@ fn no_capture_reports_prints_as_other() {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn place_version_runs_on_that_version() {
     let o = run_jsonl("print_warn.luau", &[]);
     assert_eq!(o.code, 0);
@@ -240,7 +240,7 @@ fn place_version_runs_on_that_version() {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn trace_modules_attributes_module_output() {
     // Creates the module itself: the test place is an empty baseplate.
     let o = run_jsonl("modules_runtime.luau", &["--trace-modules"]);
@@ -263,7 +263,7 @@ fn trace_modules_attributes_module_output() {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn timeout_exits_124() {
     let o = run_jsonl("forever.luau", &["--timeout", "5"]);
     assert_eq!(o.code, 124);
@@ -271,7 +271,7 @@ fn timeout_exits_124() {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn bad_key_is_an_auth_error() {
     let path = fixture("print_warn.luau");
     let o = cloud_run_with_key(
@@ -288,7 +288,7 @@ fn bad_key_is_an_auth_error() {
 
 /// Options that make no sense in the cloud fail before any request is made.
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn usage_errors_exit_2() {
     let path = fixture("print_warn.luau");
     let script = path.to_str().unwrap();
@@ -307,7 +307,7 @@ fn usage_errors_exit_2() {
 /// Inputs go up packed in the task's binary input; the binary output comes
 /// back after the events in the task's.
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn inputs_and_binary_output_round_trip() {
     let (inputs, out, expected) = common::binary_io_case("cloud-io", 1024 * 1024);
     let mut args = vec![];
@@ -330,7 +330,7 @@ fn inputs_and_binary_output_round_trip() {
 }
 
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn structured_log_context_is_reported() {
     let o = run_jsonl("structured_logs.luau", &[]);
     assert_eq!(o.code, 0, "{}", o.stderr);

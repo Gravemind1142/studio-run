@@ -2,7 +2,7 @@
 //!
 //! Read from environment variables, or from a `.env` file at the repo root
 //! (gitignored; copy `.env.example`). A variable that's set in the environment
-//! wins over the file. See docs/cloud-testing.md.
+//! wins over the file. See docs/internals/cloud-testing.md.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -42,7 +42,7 @@ pub fn cloud_env() -> &'static CloudEnv {
         Err(problems) => panic!(
             "cloud tests need a test experience and API key:\n  {}\n\
              Set them in the environment or in .env at the repo root \
-             (copy .env.example). See docs/cloud-testing.md.",
+             (copy .env.example). See docs/internals/cloud-testing.md.",
             problems.join("\n  ")
         ),
     })

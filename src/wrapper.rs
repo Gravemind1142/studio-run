@@ -54,7 +54,7 @@ pub struct WrapperOptions {
     pub chunk_name: String,
     /// Replace `print`/`warn` in the script's env so its output is attributed to it.
     pub capture_print: bool,
-    /// Load required ModuleScripts ourselves (opt-in; see README).
+    /// Load required ModuleScripts ourselves (opt-in; see docs/guide/test-runners.md).
     pub trace_modules: bool,
     /// Send the script's binary output back (`--binary-output`).
     pub binary_output: bool,

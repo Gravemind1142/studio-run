@@ -1,5 +1,5 @@
 //! studio-run: run Luau scripts in hidden Roblox Studio (Windows and macOS), or as
-//! Open Cloud Luau Execution tasks (`--cloud`, anywhere). See README.md.
+//! Open Cloud Luau Execution tasks (`--cloud`, anywhere). See README.md and docs/.
 
 mod binary;
 mod cloud;

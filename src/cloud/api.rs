@@ -1,6 +1,6 @@
 //! A minimal Open Cloud client: upload a task's binary input, create and poll
 //! a Luau Execution task, read its logs and download its binary output.
-//! Behaviour it relies on is in docs/cloud-behavior.md.
+//! Behaviour it relies on is in docs/internals/cloud-behavior.md.
 
 use std::time::{Duration, Instant};
 
