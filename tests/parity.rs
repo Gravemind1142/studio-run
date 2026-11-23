@@ -80,6 +80,18 @@ const CASES: &[Case] = &[
     case("return_false.luau"),
     case("return_table.luau"),
     case("return_multiple.luau"),
+    // Inputs
+    Case {
+        args: &[
+            "--arg",
+            "name=a=b",
+            "--arg",
+            "empty=",
+            "--arg",
+            "uni=héllo ✓",
+        ],
+        ..case("args.luau")
+    },
     // Types
     case("export_type.luau"),
 ];
