@@ -5,6 +5,7 @@ pub mod api;
 pub mod config;
 pub mod wrapper;
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -36,6 +37,8 @@ pub struct CloudOptions {
     pub filter: OutputFilter,
     pub capture_print: bool,
     pub keep_temp: bool,
+    /// From `--arg key=value`, for the script's context.
+    pub args: BTreeMap<String, String>,
     /// From `--input`, packed into the task's binary input.
     pub inputs: Vec<Input>,
     /// `--binary-output`: where to write the script's binary output.
@@ -85,15 +88,24 @@ pub fn run(opts: &CloudOptions) -> i32 {
         );
         return EXIT_USAGE;
     }
+    let context = crate::wrapper::ScriptContext {
+        host: "cloud",
+        args: &opts.args,
+        universe_id: Some(settings.universe_id),
+        place_id: Some(settings.place_id),
+        // The wrapper reads it from game.PlaceVersion once the task runs.
+        place_version: None,
+    };
     let script = wrapper::generate(
         &opts.source,
         &opts.chunk_name,
         opts.capture_print,
         opts.binary_output.is_some(),
+        &context.to_lua(),
     );
     if script.len() > wrapper::MAX_SCRIPT_BYTES {
         note(&format!(
-            "the script is too large for a Luau Execution task ({} bytes with the wrapper; the limit is {} bytes)",
+            "the script is too large for a Luau Execution task ({} bytes with the wrapper and --arg values; the limit is {} bytes)",
             script.len(),
             wrapper::MAX_SCRIPT_BYTES
         ));

@@ -7,6 +7,9 @@ local CHUNK_NAME = __SR_CHUNK__ -- "=name.luau": name used in errors/tracebacks
 local CAPTURE_PRINT = __SR_CAPTURE__
 local TRACE_MODULES = __SR_TRACE__
 local SEND_BINARY_OUTPUT = __SR_BINARY_OUTPUT__ -- --binary-output was given
+-- The script's first vararg (`local ctx = ...`); see README, "Script context".
+-- `inputs` and `setBinaryOutput` are added below.
+local CONTEXT = __SR_CONTEXT__
 local INPUTS = __SR_INPUTS__ -- { [name] = bytes } from --input
 local SOURCE = __SR_SOURCE__
 
@@ -230,7 +233,7 @@ tracedRequire = function(target)
 end
 
 ---------------------------------------------------------------------------
--- The script context: the script's first vararg
+-- ctx.inputs and ctx.setBinaryOutput
 ---------------------------------------------------------------------------
 
 local inputs = {}
@@ -241,27 +244,26 @@ INPUTS = nil
 
 local binaryOutput = nil
 
-local ctx = table.freeze({
-	inputs = table.freeze(inputs),
-	setBinaryOutput = function(data)
-		if type(data) == "string" then
-			data = buffer.fromstring(data)
-		elseif typeof(data) ~= "buffer" then
-			error("ctx.setBinaryOutput expects a buffer, got " .. typeof(data), 2)
-		end
-		if buffer.len(data) > MAX_BINARY_OUTPUT then
-			error(
-				string.format(
-					"binary output is %d bytes; the limit is %d bytes (8 MiB) in local Studio",
-					buffer.len(data),
-					MAX_BINARY_OUTPUT
-				),
-				2
-			)
-		end
-		binaryOutput = data
-	end,
-})
+CONTEXT.inputs = inputs
+
+function CONTEXT.setBinaryOutput(data)
+	if type(data) == "string" then
+		data = buffer.fromstring(data)
+	elseif typeof(data) ~= "buffer" then
+		error("ctx.setBinaryOutput expects a buffer, got " .. typeof(data), 2)
+	end
+	if buffer.len(data) > MAX_BINARY_OUTPUT then
+		error(
+			string.format(
+				"binary output is %d bytes; the limit is %d bytes (8 MiB) in local Studio",
+				buffer.len(data),
+				MAX_BINARY_OUTPUT
+			),
+			2
+		)
+	end
+	binaryOutput = data
+end
 
 -- Base64 with the URL-safe alphabet, so JSON never needs to escape it.
 local B64 = buffer.fromstring("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
@@ -357,7 +359,7 @@ else
 	end
 	local packed = table.pack(xpcall(fn, function(e)
 		return { message = tostring(e), traceback = cleanTraceback(debug.traceback(nil, 2)) }
-	end, ctx))
+	end, CONTEXT))
 	if packed[1] then
 		result = { ok = true, exitCode = exitCodeFrom(packed[2]), reason = "returned" }
 	else

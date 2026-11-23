@@ -15,6 +15,11 @@ local TASK_ARGS = table.pack(...) -- { BinaryInput = buffer } with --input
 local CHUNK_NAME = __SR_CHUNK__ -- "name.luau": used in errors and tracebacks
 local CAPTURE_PRINT = __SR_CAPTURE__
 local SEND_BINARY_OUTPUT = __SR_BINARY_OUTPUT__ -- --binary-output was given
+-- The script's first vararg (`local ctx = ...`); see README, "Script context".
+-- `inputs` and `setBinaryOutput` are added below.
+local CONTEXT = __SR_CONTEXT__
+-- Only known once the task runs: the latest version, or the one just uploaded.
+CONTEXT.place.version = game.PlaceVersion
 local SOURCE = __SR_SOURCE__
 
 local PROTOCOL = 1
@@ -175,7 +180,7 @@ ScriptContext.Error:Connect(function(message, stack, origin)
 end)
 
 ---------------------------------------------------------------------------
--- The script context: the script's first vararg
+-- ctx.inputs and ctx.setBinaryOutput
 ---------------------------------------------------------------------------
 
 -- Packed by studio-run (src/binary.rs): "SRI1", the count, then for each
@@ -205,27 +210,26 @@ TASK_ARGS = nil
 
 local binaryOutput = nil
 
-local ctx = table.freeze({
-	inputs = table.freeze(inputs),
-	setBinaryOutput = function(data)
-		if type(data) == "string" then
-			data = buffer.fromstring(data)
-		elseif typeof(data) ~= "buffer" then
-			error("ctx.setBinaryOutput expects a buffer, got " .. typeof(data), 2)
-		end
-		if buffer.len(data) > MAX_TASK_OUTPUT then
-			error(
-				string.format(
-					"binary output is %d bytes; the limit is %d bytes (256 MiB) in the cloud",
-					buffer.len(data),
-					MAX_TASK_OUTPUT
-				),
-				2
-			)
-		end
-		binaryOutput = data
-	end,
-})
+CONTEXT.inputs = inputs
+
+function CONTEXT.setBinaryOutput(data)
+	if type(data) == "string" then
+		data = buffer.fromstring(data)
+	elseif typeof(data) ~= "buffer" then
+		error("ctx.setBinaryOutput expects a buffer, got " .. typeof(data), 2)
+	end
+	if buffer.len(data) > MAX_TASK_OUTPUT then
+		error(
+			string.format(
+				"binary output is %d bytes; the limit is %d bytes (256 MiB) in the cloud",
+				buffer.len(data),
+				MAX_TASK_OUTPUT
+			),
+			2
+		)
+	end
+	binaryOutput = data
+end
 
 ---------------------------------------------------------------------------
 -- Run
@@ -299,7 +303,7 @@ else
 	end
 	local packed = table.pack(xpcall(fn, function(e)
 		return { message = tostring(e), traceback = cleanTraceback(debug.traceback(nil, 2)) }
-	end, ctx))
+	end, CONTEXT))
 	if packed[1] then
 		result = { ok = true, exitCode = exitCodeFrom(packed[2]), reason = "returned" }
 	else

@@ -10,10 +10,12 @@ All notable changes to this project are recorded here. The format follows
 
 - `--input name=<file>` (repeatable) and `--binary-output <file>`, on both
   hosts: scripts read inputs as buffers in `ctx.inputs[name]` and set their
-  binary output with `ctx.setBinaryOutput(buf)`. The script context `ctx` is
-  the script's first vararg. Inputs are at most 100 MiB in total; the output
-  at most 8 MiB locally and 256 MiB with `--cloud`.
-
+  binary output with `ctx.setBinaryOutput(buf)`. Inputs are at most 100 MiB in
+  total; the output at most 8 MiB locally and 256 MiB with `--cloud`.
+- `--arg key=value` (repeatable), and a script context passed as the script's
+  first vararg (`local ctx = ...`): `ctx.host` (`local` or `cloud`),
+  `ctx.version`, `ctx.args` and `ctx.place` (universe, place and version
+  where known). The same on both hosts.
 - macOS support. Hidden launches pass Studio's `--background` flag and run in
   a process group, instead of the Windows private desktop and job object.
   The next release also publishes `macos-aarch64` and `macos-x86_64` archives.

@@ -8,16 +8,19 @@ const TEMPLATE: &str = include_str!("wrapper.luau");
 pub const MAX_SCRIPT_BYTES: usize = 4 * 1024 * 1024;
 
 /// Build the task script around `source`. `chunk_name` (e.g. `test.luau`)
-/// names the ModuleScript the source is compiled as.
+/// names the ModuleScript the source is compiled as. `context` is the
+/// script's context as a Luau table ([`crate::wrapper::ScriptContext::to_lua`]).
 /// `binary_output`: return the script's binary output (`--binary-output`).
 pub fn generate(
     source: &[u8],
     chunk_name: &str,
     capture_print: bool,
     binary_output: bool,
+    context: &str,
 ) -> String {
     let source = source.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(source);
-    // Replace SOURCE last, so placeholder text inside the user's code is never touched.
+    // Replace SOURCE last, so placeholder text inside the user's code is never
+    // touched; CONTEXT (with --arg values) just before it, for the same reason.
     TEMPLATE
         .replacen("__SR_CHUNK__", &lua_string(chunk_name.as_bytes()), 1)
         .replacen(
@@ -30,6 +33,7 @@ pub fn generate(
             if binary_output { "true" } else { "false" },
             1,
         )
+        .replacen("__SR_CONTEXT__", context, 1)
         .replacen("__SR_SOURCE__", &lua_string(source), 1)
 }
 
@@ -39,7 +43,7 @@ mod tests {
 
     #[test]
     fn fills_every_placeholder() {
-        let w = generate(b"print(1)", "test.luau", true, true);
+        let w = generate(b"print(1)", "test.luau", true, true, "{}");
         assert!(!w.contains("__SR_"), "unfilled placeholder");
         assert!(w.contains(r#"local SOURCE = "print(1)""#));
         assert!(w.contains(r#"local CHUNK_NAME = "test.luau""#));
@@ -52,21 +56,21 @@ mod tests {
 
     #[test]
     fn placeholder_text_in_user_code_is_untouched() {
-        let w = generate(b"print('__SR_CHUNK__')", "test.luau", false, false);
+        let w = generate(b"print('__SR_CHUNK__')", "test.luau", false, false, "{}");
         assert!(w.contains("__SR_CHUNK__"));
         assert!(w.contains("local CAPTURE_PRINT = false"));
     }
 
     #[test]
     fn strips_utf8_bom() {
-        let w = generate(b"\xEF\xBB\xBFprint(1)", "test.luau", true, false);
+        let w = generate(b"\xEF\xBB\xBFprint(1)", "test.luau", true, false, "{}");
         assert!(w.contains(r#"local SOURCE = "print(1)""#));
     }
 
     #[test]
     fn source_starts_on_the_modules_first_line() {
         // Line numbers in errors are the file's only if nothing precedes the source.
-        let w = generate(b"x", "t.luau", true, false);
+        let w = generate(b"x", "t.luau", true, false, "{}");
         assert!(w.contains(r#"module.Source = "return function(...) " .. SOURCE .. "\nend""#));
     }
 }

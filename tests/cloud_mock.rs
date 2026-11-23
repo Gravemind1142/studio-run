@@ -241,6 +241,39 @@ fn options_reach_the_request() {
 }
 
 #[test]
+fn args_and_place_reach_the_script_context() {
+    let mock = happy_mock(7, 0, |_| None);
+    let o = run(
+        &mock,
+        &[&script("print_warn.luau"), "--arg", "k=v\"w", "--arg", "a="],
+    );
+    assert_eq!(o.code, 0);
+    let body = mock.matching("POST", "/luau-execution-session-tasks")[0].json();
+    let script = body["script"].as_str().unwrap();
+    assert!(
+        script.contains(r#"args = { ["a"] = "", ["k"] = "v\"w" }"#),
+        "{script}"
+    );
+    assert!(script.contains(r#"host = "cloud""#));
+    assert!(script.contains("place = { universeId = 1, placeId = 2, version = nil }"));
+}
+
+#[test]
+fn bad_args_are_usage_errors() {
+    let mock = MockApi::start(|_| Response::json(500, json!({})));
+    let s = script("print_warn.luau");
+    for args in [
+        vec![s.as_str(), "--arg", "novalue"],
+        vec![s.as_str(), "--arg", "=v"],
+        vec![s.as_str(), "--arg", "k=1", "--arg", "k=2"],
+    ] {
+        let o = run(&mock, &args);
+        assert_eq!(o.code, 2, "{args:?}: {}", o.stderr);
+    }
+    assert!(mock.requests().is_empty(), "{:?}", mock.requests());
+}
+
+#[test]
 fn place_files_upload_as_saved_versions_then_run_on_them() {
     let mock = happy_mock(12, 0, |_| None);
     let place = fixture("marker.rbxlx");

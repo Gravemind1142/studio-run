@@ -5,7 +5,48 @@
 
 use crate::binary::Input;
 
+use std::collections::BTreeMap;
+
 const TEMPLATE: &str = include_str!("wrapper.luau");
+
+/// What the script gets as its first vararg (`local ctx = ...`), in the same
+/// shape on both hosts.
+pub struct ScriptContext<'a> {
+    /// `"local"` or `"cloud"`.
+    pub host: &'static str,
+    /// From `--arg key=value`.
+    pub args: &'a BTreeMap<String, String>,
+    pub universe_id: Option<u64>,
+    pub place_id: Option<u64>,
+    pub place_version: Option<u64>,
+}
+
+impl ScriptContext<'_> {
+    /// The context as a Luau table constructor.
+    pub fn to_lua(&self) -> String {
+        let args: Vec<String> = self
+            .args
+            .iter()
+            .map(|(k, v)| {
+                format!(
+                    "[{}] = {}",
+                    lua_string(k.as_bytes()),
+                    lua_string(v.as_bytes())
+                )
+            })
+            .collect();
+        let num = |n: Option<u64>| n.map_or("nil".to_string(), |n| n.to_string());
+        format!(
+            "{{ host = {}, version = {}, args = {{ {} }}, place = {{ universeId = {}, placeId = {}, version = {} }} }}",
+            lua_string(self.host.as_bytes()),
+            lua_string(env!("CARGO_PKG_VERSION").as_bytes()),
+            args.join(", "),
+            num(self.universe_id),
+            num(self.place_id),
+            num(self.place_version),
+        )
+    }
+}
 
 #[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub struct WrapperOptions {
@@ -17,6 +58,8 @@ pub struct WrapperOptions {
     pub trace_modules: bool,
     /// Send the script's binary output back (`--binary-output`).
     pub binary_output: bool,
+    /// The script's context, as a Luau table ([`ScriptContext::to_lua`]).
+    pub context: String,
 }
 
 /// Build the wrapper script around `source`, with `inputs` embedded.
@@ -32,21 +75,38 @@ pub fn generate(source: &[u8], inputs: &[Input], opts: &WrapperOptions) -> Strin
         .replacen("__SR_CAPTURE__", bool_lit(opts.capture_print), 1)
         .replacen("__SR_TRACE__", bool_lit(opts.trace_modules), 1)
         .replacen("__SR_BINARY_OUTPUT__", bool_lit(opts.binary_output), 1);
-    // The inputs and source go in last, in one pass, so placeholder text inside
-    // them is never touched and the (possibly large) literals are copied once.
-    let (head, rest) = small
-        .split_once("__SR_INPUTS__")
-        .expect("inputs placeholder");
-    let (middle, tail) = rest
-        .split_once("__SR_SOURCE__")
-        .expect("source placeholder");
+    // The context (with --arg values), inputs and source go in last, in one
+    // pass, so placeholder text inside them is never touched and the
+    // (possibly large) literals are copied once.
     let inputs = inputs_table(inputs);
     let source = lua_string(source);
-    let mut out =
-        String::with_capacity(head.len() + inputs.len() + middle.len() + source.len() + tail.len());
-    for part in [head, &inputs, middle, &source, tail] {
-        out.push_str(part);
+    fill_once(
+        &small,
+        &[
+            ("__SR_CONTEXT__", &opts.context),
+            ("__SR_INPUTS__", &inputs),
+            ("__SR_SOURCE__", &source),
+        ],
+    )
+}
+
+/// Replaces each placeholder, which must appear once in `template`, with its
+/// value, without looking inside the values.
+fn fill_once(template: &str, parts: &[(&str, &str)]) -> String {
+    let mut at: Vec<(usize, &str, &str)> = parts
+        .iter()
+        .map(|&(p, v)| (template.find(p).expect("placeholder in template"), p, v))
+        .collect();
+    at.sort_by_key(|&(i, _, _)| i);
+    let len = template.len() + parts.iter().map(|(_, v)| v.len()).sum::<usize>();
+    let mut out = String::with_capacity(len);
+    let mut pos = 0;
+    for (i, p, v) in at {
+        out.push_str(&template[pos..i]);
+        out.push_str(v);
+        pos = i + p.len();
     }
+    out.push_str(&template[pos..]);
     out
 }
 
@@ -104,7 +164,39 @@ mod tests {
             capture_print: true,
             trace_modules: false,
             binary_output: false,
+            context: "{}".into(),
         }
+    }
+
+    #[test]
+    fn context_is_a_luau_table() {
+        let mut args = BTreeMap::new();
+        args.insert("b".to_string(), "x\"y".to_string());
+        args.insert("a".to_string(), "1".to_string());
+        let ctx = ScriptContext {
+            host: "local",
+            args: &args,
+            universe_id: Some(1),
+            place_id: Some(2),
+            place_version: None,
+        };
+        assert_eq!(
+            ctx.to_lua(),
+            format!(
+                r#"{{ host = "local", version = "{}", args = {{ ["a"] = "1", ["b"] = "x\"y" }}, place = {{ universeId = 1, placeId = 2, version = nil }} }}"#,
+                env!("CARGO_PKG_VERSION")
+            )
+        );
+    }
+
+    #[test]
+    fn placeholder_text_in_args_is_untouched() {
+        let mut o = opts();
+        o.context = r#"{ args = { x = "__SR_SOURCE__", y = "__SR_INPUTS__" } }"#.into();
+        let w = generate(b"print(1)", &[], &o);
+        assert!(w.contains(r#"local SOURCE = "print(1)""#));
+        assert!(w.contains("local INPUTS = {}"));
+        assert!(w.contains(r#"x = "__SR_SOURCE__", y = "__SR_INPUTS__""#));
     }
 
     #[test]
@@ -129,6 +221,7 @@ mod tests {
         assert!(w.contains("local TRACE_MODULES = false"));
         assert!(w.contains("local SEND_BINARY_OUTPUT = false"));
         assert!(w.contains("local INPUTS = {}"));
+        assert!(w.contains("local CONTEXT = {}"));
         assert!(w.starts_with("--[[studio-run wrapper]]"));
         // Studio echoes the wrapper into its log; the sentinel must not appear in it.
         assert!(!w.contains(crate::events::SENTINEL));

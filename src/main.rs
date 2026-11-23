@@ -17,6 +17,7 @@ mod run;
 #[cfg(any(windows, target_os = "macos"))]
 mod sandbox;
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -118,6 +119,11 @@ struct RunArgs {
     /// Which output to show in text format.
     #[arg(long, value_enum, default_value_t = OutputFilter::Normal)]
     output: OutputFilter,
+
+    /// Pass a string to the script, as `ctx.args[key]` (`local ctx = ...`).
+    /// Repeatable.
+    #[arg(long = "arg", value_name = "KEY=VALUE", value_parser = parse_arg)]
+    args: Vec<(String, String)>,
 
     /// Don't replace print/warn in the script's environment. Its output is
     /// then reported as `other`, like any other script's.
@@ -260,7 +266,28 @@ fn usage(msg: &str) -> i32 {
     EXIT_USAGE
 }
 
-fn cmd_run(a: RunArgs) -> i32 {
+/// `--arg key=value`: split at the first `=`, so values may contain `=`.
+fn parse_arg(s: &str) -> Result<(String, String), String> {
+    match s.split_once('=') {
+        Some(("", _)) => Err("the key is empty; expected KEY=VALUE".into()),
+        Some((k, v)) => Ok((k.to_string(), v.to_string())),
+        None => Err("expected KEY=VALUE".into()),
+    }
+}
+
+/// The `--arg` values by key, or a usage error if a key repeats.
+fn script_args(pairs: Vec<(String, String)>) -> Result<BTreeMap<String, String>, String> {
+    let mut args = BTreeMap::new();
+    for (k, v) in pairs {
+        if args.contains_key(&k) {
+            return Err(format!("--arg {k} is given more than once"));
+        }
+        args.insert(k, v);
+    }
+    Ok(args)
+}
+
+fn cmd_run(mut a: RunArgs) -> i32 {
     let source = match std::fs::read(&a.script) {
         Ok(s) => s,
         Err(e) => return usage(&format!("couldn't read {}: {e}", a.script.display())),
@@ -270,18 +297,28 @@ fn cmd_run(a: RunArgs) -> i32 {
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "script.luau".into());
+    let args = match script_args(std::mem::take(&mut a.args)) {
+        Ok(args) => args,
+        Err(e) => return usage(&e),
+    };
     let inputs = match binary::read_inputs(&a.inputs) {
         Ok(i) => i,
         Err(e) => return usage(&e),
     };
     if a.cloud.enabled() {
-        cmd_run_cloud(a, source, chunk_name, inputs)
+        cmd_run_cloud(a, source, chunk_name, args, inputs)
     } else {
-        local::run(a, source, chunk_name, inputs)
+        local::run(a, source, chunk_name, args, inputs)
     }
 }
 
-fn cmd_run_cloud(a: RunArgs, source: Vec<u8>, chunk_name: String, inputs: Vec<Input>) -> i32 {
+fn cmd_run_cloud(
+    a: RunArgs,
+    source: Vec<u8>,
+    chunk_name: String,
+    args: BTreeMap<String, String>,
+    inputs: Vec<Input>,
+) -> i32 {
     if a.visible {
         return usage("--visible needs local Studio; it can't be used with --cloud");
     }
@@ -319,6 +356,7 @@ fn cmd_run_cloud(a: RunArgs, source: Vec<u8>, chunk_name: String, inputs: Vec<In
         filter: a.output,
         capture_print: !a.no_capture,
         keep_temp: a.keep_temp,
+        args,
         inputs,
         binary_output: a.binary_output,
     })
@@ -339,6 +377,7 @@ fn cmd_doctor_cloud(a: DoctorArgs) -> i32 {
 /// The local Studio host: Windows and macOS.
 #[cfg(any(windows, target_os = "macos"))]
 mod local {
+    use std::collections::BTreeMap;
     use std::path::PathBuf;
     use std::time::{Duration, Instant};
 
@@ -354,7 +393,13 @@ mod local {
         })
     }
 
-    pub fn run(a: RunArgs, source: Vec<u8>, chunk_name: String, inputs: Vec<Input>) -> i32 {
+    pub fn run(
+        a: RunArgs,
+        source: Vec<u8>,
+        chunk_name: String,
+        args: BTreeMap<String, String>,
+        inputs: Vec<Input>,
+    ) -> i32 {
         if a.place_version.is_some() || a.allow_upload {
             return usage("--place-version and --allow-upload need --cloud");
         }
@@ -390,6 +435,7 @@ mod local {
             keep_temp: a.keep_temp,
             studio_exe: exe,
             studio_args: a.studio_args,
+            args,
             inputs,
             binary_output: a.binary_output,
         })
@@ -460,6 +506,7 @@ mod local {
             keep_temp: false,
             studio_exe: exe,
             studio_args: vec![],
+            args: BTreeMap::new(),
             inputs: vec![],
             binary_output: None,
         });
@@ -511,7 +558,13 @@ mod local {
 
     const MSG: &str = "local Studio runs need Windows or macOS; use --cloud";
 
-    pub fn run(_: RunArgs, _: Vec<u8>, _: String, _: Vec<Input>) -> i32 {
+    pub fn run(
+        _: RunArgs,
+        _: Vec<u8>,
+        _: String,
+        _: std::collections::BTreeMap<String, String>,
+        _: Vec<Input>,
+    ) -> i32 {
         usage(MSG)
     }
 

@@ -82,6 +82,23 @@ fn return_value_sets_exit_code() {
 
 #[test]
 #[ignore]
+fn script_gets_its_context() {
+    let o = run_jsonl("context.luau", &["--arg", "name=a=b", "--arg", "empty="]);
+    assert_eq!(o.code, 0);
+    let ctx: Value = serde_json::from_str(&o.script_output("print")[0]).unwrap();
+    assert_eq!(ctx["host"], "local");
+    assert_eq!(ctx["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(
+        ctx["args"],
+        serde_json::json!({ "name": "a=b", "empty": "" })
+    );
+    // A baseplate has no published place. (JSONEncode writes `{}` as `[]`.)
+    assert!(ctx["place"]["placeId"].is_null(), "{ctx}");
+    assert!(ctx["place"]["universeId"].is_null(), "{ctx}");
+}
+
+#[test]
+#[ignore]
 fn compile_error_fails() {
     let o = run_jsonl("compile_error.luau", &[]);
     assert_eq!(o.code, 1);
