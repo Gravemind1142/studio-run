@@ -165,6 +165,8 @@ struct RunArgs {
     studio_args: Vec<String>,
 }
 
+// Without a local host (Linux), these are parsed but never read.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 #[derive(Args)]
 struct ApiDumpArgs {
     /// Where to write the JSON.
@@ -199,6 +201,7 @@ struct DoctorArgs {
     studio: StudioArg,
 }
 
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 #[derive(Args)]
 struct RawArgs {
     /// Seconds before Studio is killed (exit code 124).
@@ -217,6 +220,7 @@ struct RawArgs {
     studio_args: Vec<String>,
 }
 
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 #[derive(Clone, Copy, ValueEnum)]
 enum ApiKind {
     /// Full API, V2 schema (`--apiV2`).
