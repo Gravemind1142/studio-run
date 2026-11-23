@@ -342,17 +342,18 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute, and
 [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ```powershell
-cargo test                                # unit tests
+cargo test                                # unit tests, and --cloud against a mock API
 cargo test --test studio -- --ignored     # end-to-end tests against real Studio (a few minutes)
 cargo test --test behavior -- --ignored   # check Studio still behaves as documented (~2 min)
 cargo test --test cloud -- --ignored --test-threads=1            # end-to-end --cloud tests (~3 min)
 cargo test --test cloud_behavior -- --ignored --test-threads=1   # check Open Cloud still behaves as documented
 ```
 
-The cloud tests need a test experience and API key of your own, in a
+The real-API cloud tests need a test experience and API key of your own, in a
 gitignored `.env`: see [docs/cloud-testing.md](docs/cloud-testing.md).
-`.github/workflows/cloud.yml` runs them with the maintainers' secrets on pushes
-to `main` and manual runs, never on pull requests.
+`.github/workflows/cloud.yml` runs them weekly and on manual runs, with the
+maintainers' secrets, never on pull requests. On pull requests,
+`tests/cloud_mock.rs` checks `--cloud` against a local mock of the API instead.
 
 The end-to-end tests (`tests/studio.rs`) need Studio installed and logged in.
 They run up to three hidden Studio instances at once. CI can't run them (its

@@ -30,7 +30,10 @@ All notable changes to this project are recorded here. The format follows
   [docs/cloud-behavior.md](docs/cloud-behavior.md), how Luau Execution tasks
   behave, re-checked by `tests/cloud_behavior.rs`; and `tests/cloud.rs`,
   end-to-end tests of `--cloud`. Both need a test experience and key of your
-  own ([docs/cloud-testing.md](docs/cloud-testing.md)).
+  own ([docs/cloud-testing.md](docs/cloud-testing.md)); a weekly workflow runs
+  them against the real API. `tests/cloud_mock.rs` checks `--cloud` against a
+  local mock of the API in every `cargo test`, so pull requests are covered
+  without a key.
 
 ### Changed
 

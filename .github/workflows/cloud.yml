@@ -1,15 +1,21 @@
 name: Cloud tests
 
-# Runs the --cloud end-to-end tests and the Open Cloud behaviour checks against
-# the maintainers' test experience (docs/cloud-testing.md). Never on pull
-# requests: their code mustn't get the key, and forks don't get secrets anyway.
+# Weekly, runs the --cloud end-to-end tests and the Open Cloud behaviour checks
+# against the real API, with the maintainers' test experience
+# (docs/cloud-testing.md). This catches Roblox changing the API. Pull requests
+# are covered without the API by tests/cloud_mock.rs, which runs in ci.yml.
+#
+# Never on pull requests: their code mustn't get the key, and forks don't get
+# secrets anyway. Run it by hand from the Actions tab to check a change against
+# the real API.
 on:
-  push:
-    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1" # Mondays, 06:17 UTC
   workflow_dispatch:
 
 permissions:
   contents: read
+  issues: write # to report a failed scheduled run
 
 # One run at a time: task creation is rate limited per key owner.
 concurrency:
@@ -47,3 +53,26 @@ jobs:
       - name: Behaviour checks
         if: steps.secrets.outputs.skip != 'true'
         run: cargo test --locked --test cloud_behavior -- --ignored --test-threads=1
+
+      # A failed scheduled run opens an issue (or comments on the open one),
+      # so it isn't missed. A failure means Roblox changed the API, the key
+      # expired or lost a permission, or the test experience changed.
+      - name: Report failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Weekly cloud tests failed"
+          body="The scheduled run against Open Cloud failed: $RUN_URL
+
+          Check the log. A failure usually means one of:
+          - Roblox changed the Luau Execution API: update docs/cloud-behavior.md, and studio-run if it relied on the old behaviour.
+          - The API key expired, lost a permission or its IP allowance (needs 0.0.0.0/0): replace the STUDIO_RUN_TEST_API_KEY secret.
+          - The test experience was changed or deleted."
+          existing=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" -R "$GITHUB_REPOSITORY" --body "Failed again: $RUN_URL"
+          else
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi

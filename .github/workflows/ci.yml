@@ -45,8 +45,9 @@ jobs:
       - name: Clippy
         run: cargo clippy --locked --all-targets -- -D warnings
       # The end-to-end tests are #[ignore]d: tests/studio.rs needs a logged-in
-      # Roblox Studio, which CI runners don't have, and the cloud tests need
-      # secrets (see cloud.yml). They still compile here.
+      # Roblox Studio, which CI runners don't have, and the real-API cloud tests
+      # need secrets (see cloud.yml, weekly). They still compile here. The
+      # unit tests include tests/cloud_mock.rs: --cloud against a local mock API.
       - name: Unit tests
         run: cargo test --locked
       - name: Release build

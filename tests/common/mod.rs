@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 pub mod cloud;
+pub mod mock;
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

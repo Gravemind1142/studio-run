@@ -8,7 +8,13 @@ is committed: the tests read three settings from a gitignored `.env` file.
 These tests are `#[ignore]`d like the Studio ones, so `cargo test` never needs
 any of this.
 
-There are two suites:
+`tests/cloud_mock.rs` is different: it runs `studio-run run --cloud` against a
+local mock of the API (`tests/common/mock.rs`), with no network or key, and
+checks the requests studio-run sends and how it handles each kind of response.
+It runs with plain `cargo test`, so CI checks it on every pull request. It
+can't tell whether the real API has changed; the suites below can.
+
+There are two suites against the real API:
 
 - `tests/cloud.rs`: end-to-end tests of `studio-run run --cloud`, using the
   same fixtures as the local Studio tests in `tests/studio.rs`.
@@ -83,10 +89,19 @@ the same account at the same time slows them down.
 
 ## CI
 
-CI (`.github/workflows/cloud.yml`) runs both suites with the maintainers'
-experience and key, stored as repository secrets with the same three names.
-Without the secrets, the workflow skips with a notice. It runs them only on pushes to
-`main` and on manual runs, never on pull requests: GitHub doesn't give secrets
-to pull requests from forks, and a pull request's code shouldn't get the key
-anyway. If your change affects the cloud host, run the tests with your own
-setup and say in the pull request that they passed.
+On pull requests, CI runs `tests/cloud_mock.rs` with the other tests.
+
+`.github/workflows/cloud.yml` runs both real-API suites **weekly** (Mondays)
+and on manual runs, against `main`, with the maintainers' experience and key
+stored as repository secrets with the same three names. Without the secrets,
+the workflow skips with a notice. A failed weekly run opens an issue, "Weekly
+cloud tests failed" (or comments on it if it's still open).
+
+It never runs on pull requests: GitHub doesn't give secrets to pull requests
+from forks, and a pull request's code shouldn't get the key anyway. If your
+change affects the cloud host, run the real-API tests with your own setup and
+say in the pull request that they passed. A maintainer can also run the
+workflow by hand on a branch.
+
+GitHub disables scheduled workflows in a repository with no activity for 60
+days; re-enable it from the Actions tab.

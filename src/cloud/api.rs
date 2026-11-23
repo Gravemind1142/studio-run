@@ -8,6 +8,31 @@ use serde_json::{Value, json};
 
 const BASE: &str = "https://apis.roblox.com";
 
+/// Test-only: point the client at a local mock server (tests/cloud_mock.rs)
+/// instead of Open Cloud. Only loopback addresses are accepted, so this can't
+/// be used to send the key anywhere else.
+pub const BASE_OVERRIDE_ENV: &str = "STUDIO_RUN_TEST_API_BASE";
+
+fn base_url() -> String {
+    match std::env::var(BASE_OVERRIDE_ENV) {
+        Ok(url) if is_loopback(&url) => url.trim_end_matches('/').to_string(),
+        _ => BASE.to_string(),
+    }
+}
+
+/// `http://127.0.0.1:<port>` or `http://localhost:<port>`, optionally with a
+/// path. Anything else after the host (`@user-info`, more host) is rejected.
+fn is_loopback(url: &str) -> bool {
+    let Some(rest) = ["http://127.0.0.1:", "http://localhost:"]
+        .iter()
+        .find_map(|p| url.strip_prefix(p))
+    else {
+        return false;
+    };
+    let (port, path) = rest.split_at(rest.find('/').unwrap_or(rest.len()));
+    !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) && !path.contains('@')
+}
+
 /// A failed request, with a stable `code` for the `error` event.
 #[derive(Debug, Clone)]
 pub struct ApiError {
@@ -63,6 +88,7 @@ fn error_message(body: &str) -> String {
 pub struct Client {
     agent: ureq::Agent,
     key: String,
+    base: String,
 }
 
 /// The IDs in a task's `path`
@@ -97,6 +123,7 @@ impl Client {
                 .user_agent(concat!("studio-run/", env!("CARGO_PKG_VERSION")))
                 .build(),
             key,
+            base: base_url(),
         }
     }
 
@@ -133,7 +160,7 @@ impl Client {
     fn json(&self, method: &str, path: &str, body: Option<&Value>) -> Result<Value, ApiError> {
         let req = self
             .agent
-            .request(method, &format!("{BASE}{path}"))
+            .request(method, &format!("{}{path}", self.base))
             .set("x-api-key", &self.key);
         let text = Self::finish(match body {
             Some(b) => req.send_json(b),
@@ -183,7 +210,8 @@ impl Client {
         deadline: Instant,
     ) -> Result<u64, ApiError> {
         let url = format!(
-            "{BASE}/universes/v1/{universe_id}/places/{place_id}/versions?versionType=Saved"
+            "{}/universes/v1/{universe_id}/places/{place_id}/versions?versionType=Saved",
+            self.base
         );
         let content_type = if xml {
             "application/xml"
@@ -337,6 +365,19 @@ mod tests {
             r#"{"errors":[{"code":0,"message":""}]}"#
         );
         assert_eq!(error_message(""), "(no message)");
+    }
+
+    #[test]
+    fn the_test_base_override_only_accepts_loopback() {
+        assert!(is_loopback("http://127.0.0.1:5000"));
+        assert!(is_loopback("http://localhost:5000/"));
+        assert!(!is_loopback("https://apis.roblox.com"));
+        assert!(!is_loopback("http://127.0.0.1.evil.example:80"));
+        assert!(!is_loopback("http://example.com/http://127.0.0.1:1"));
+        assert!(!is_loopback("https://127.0.0.1:5000"));
+        assert!(!is_loopback("http://localhost:5000@evil.example/"));
+        assert!(!is_loopback("http://127.0.0.1:80.evil.example"));
+        assert!(!is_loopback("http://127.0.0.1:/"));
     }
 
     #[test]
