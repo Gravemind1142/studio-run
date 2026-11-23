@@ -27,7 +27,6 @@ pub struct CloudOptions {
     /// Run on this existing version instead of the latest.
     pub place_version: Option<u64>,
     pub flags: config::Flags,
-    pub config: Option<PathBuf>,
     pub timeout: Duration,
     pub queue_timeout: Duration,
     pub poll_interval: Duration,
@@ -46,11 +45,8 @@ pub struct CloudOptions {
 }
 
 /// The settings and key every cloud command needs, or the exit code to use.
-fn setup(
-    config: Option<&std::path::Path>,
-    flags: &config::Flags,
-) -> Result<(config::Settings, Client), i32> {
-    let settings = config::load(config, flags).map_err(|e| {
+fn setup(flags: &config::Flags) -> Result<(config::Settings, Client), i32> {
+    let settings = config::resolve(flags).map_err(|e| {
         note(&e);
         EXIT_USAGE
     })?;
@@ -77,7 +73,7 @@ pub fn run(opts: &CloudOptions) -> i32 {
         ));
         return EXIT_USAGE;
     }
-    let (settings, client) = match setup(opts.config.as_deref(), &opts.flags) {
+    let (settings, client) = match setup(&opts.flags) {
         Ok(s) => s,
         Err(code) => return code,
     };
@@ -390,21 +386,17 @@ return {
 
 pub struct DoctorOptions {
     pub flags: config::Flags,
-    pub config: Option<PathBuf>,
 }
 
 /// `doctor --cloud`: check the settings and key, and run a trivial task.
 pub fn doctor(opts: &DoctorOptions) -> i32 {
-    let (settings, client) = match setup(opts.config.as_deref(), &opts.flags) {
+    let (settings, client) = match setup(&opts.flags) {
         Ok(s) => s,
         Err(code) => {
             println!("FAILED: see the message above.");
             return code;
         }
     };
-    if let Some(f) = &settings.file {
-        println!("Config:   {}", f.display());
-    }
     println!(
         "Place:    {} (universe {})",
         settings.place_id, settings.universe_id

@@ -237,7 +237,6 @@ fn run_against_mock(mock: &MockApi, c: &Case) -> Output {
         .env("STUDIO_RUN_TEST_API_BASE", &mock.base)
         .env("ROBLOX_API_KEY", MOCK_KEY)
         .env_remove("STUDIO_RUN_HOST")
-        // Outside the checkout, so a studio-run.toml there can't change the run.
         .current_dir(std::env::temp_dir())
         .output()
         .expect("spawn studio-run");

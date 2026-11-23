@@ -82,7 +82,6 @@ fn run_with_key(mock: &MockApi, args: &[&str], key: Option<&str>) -> Output {
         .args(args)
         .env("STUDIO_RUN_TEST_API_BASE", &mock.base)
         .env_remove("STUDIO_RUN_HOST")
-        // Outside the checkout, so a studio-run.toml there can't change the tests.
         .current_dir(std::env::temp_dir());
     match key {
         Some(k) => cmd.env("ROBLOX_API_KEY", k),

@@ -71,10 +71,6 @@ struct CloudArgs {
     /// Environment variable holding the Open Cloud API key [default: ROBLOX_API_KEY].
     #[arg(long, value_name = "NAME")]
     api_key_env: Option<String>,
-
-    /// Config file [default: studio-run.toml in this directory or a parent].
-    #[arg(long, value_name = "FILE")]
-    config: Option<PathBuf>,
 }
 
 impl CloudArgs {
@@ -94,7 +90,7 @@ struct RunArgs {
     place: Option<PathBuf>,
 
     /// Published place to run in (needs --universe-id). With --cloud, the
-    /// place to run on, if not set in studio-run.toml.
+    /// place to run on.
     #[arg(long)]
     place_id: Option<u64>,
 
@@ -201,7 +197,7 @@ struct DoctorArgs {
     #[command(flatten)]
     cloud: CloudArgs,
 
-    /// --cloud: the place to run a test task on, if not set in studio-run.toml.
+    /// --cloud: the place to run a test task on.
     #[arg(long)]
     place_id: Option<u64>,
 
@@ -344,7 +340,6 @@ fn cmd_run_cloud(
             place_id: a.place_id,
             api_key_env: a.cloud.api_key_env,
         },
-        config: a.cloud.config,
         timeout: Duration::from_secs(a.timeout),
         queue_timeout: Duration::from_secs(a.queue_timeout),
         poll_interval: Duration::from_secs(a.poll_interval),
@@ -366,7 +361,6 @@ fn cmd_doctor_cloud(a: DoctorArgs) -> i32 {
             place_id: a.place_id,
             api_key_env: a.cloud.api_key_env,
         },
-        config: a.cloud.config,
     })
 }
 

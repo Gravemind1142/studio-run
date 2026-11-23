@@ -45,7 +45,6 @@ fn cloud_run_with_key(args: &[&str], key: &str, creates_task: bool) -> Output {
         .args(&ids)
         .args(&args[1..])
         .env(API_KEY, key)
-        // Run outside the checkout, so a studio-run.toml there can't change the tests.
         .current_dir(std::env::temp_dir())
         .output()
         .expect("spawn studio-run");
