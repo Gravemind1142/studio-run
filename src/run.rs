@@ -1,5 +1,6 @@
 //! The local host: wrap a script, run it in hidden Studio, stream its events.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -9,7 +10,7 @@ use crate::output::{
 };
 use crate::sandbox::Studio;
 use crate::temp::TempDir;
-use crate::wrapper::{self, WrapperOptions};
+use crate::wrapper::{self, ScriptContext, WrapperOptions};
 
 pub enum Target {
     Baseplate,
@@ -31,6 +32,8 @@ pub struct RunOptions {
     pub keep_temp: bool,
     pub studio_exe: PathBuf,
     pub studio_args: Vec<String>,
+    /// From `--arg key=value`, for the script's context.
+    pub args: BTreeMap<String, String>,
 }
 
 /// Run the script and return the process exit code to use.
@@ -50,12 +53,27 @@ fn run_inner(opts: &RunOptions) -> Result<i32, String> {
 
     let wrapper_path = dir.path.join("wrapper.luau");
     let output_path = dir.path.join("output.log");
+    let (universe_id, place_id) = match opts.target {
+        Target::Published {
+            place_id,
+            universe_id,
+        } => (Some(universe_id), Some(place_id)),
+        _ => (None, None),
+    };
+    let context = ScriptContext {
+        host: "local",
+        args: &opts.args,
+        universe_id,
+        place_id,
+        place_version: None,
+    };
     let source = wrapper::generate(
         &opts.source,
         &WrapperOptions {
             chunk_name: opts.chunk_name.clone(),
             capture_print: opts.capture_print,
             trace_modules: opts.trace_modules,
+            context: context.to_lua(),
         },
     );
     std::fs::write(&wrapper_path, source).map_err(|e| format!("couldn't write wrapper: {e}"))?;

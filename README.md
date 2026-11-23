@@ -84,6 +84,7 @@ studio-run run <script.luau> [options] [-- <extra Studio args>]
 | `--grace <s>` | 5 | How long Studio may take to quit after the script finishes before it's stopped. |
 | `--format text\|jsonl` | text | Text output, or one JSON event per line (see below). |
 | `--output script\|normal\|verbose` | normal | Which output to show in text format (see below). |
+| `--arg <key>=<value>` | | Pass a string to the script as `ctx.args[key]`. Repeatable. See [Script context](#script-context). |
 | `--no-capture` | | Don't replace `print`/`warn` in the script's environment. |
 | `--trace-modules` | | Attribute required modules' output to them. See the caveats below. |
 | `--visible` | | Show Studio's window on your desktop, for debugging. |
@@ -118,6 +119,37 @@ The script runs in Studio's edit mode with command-bar permissions, like
 - `script` is `nil`.
 - A UTF-8 byte-order mark at the start of the file is ignored. Studio itself
   silently refuses to run a script that starts with one.
+
+### Script context
+
+The script's first vararg is a table describing the run, the same shape
+locally and under `--cloud`:
+
+```luau
+local ctx = ...
+ctx.host     -- "local" or "cloud"
+ctx.version  -- studio-run's version, e.g. "0.1.0"
+ctx.args     -- { [string]: string }, from --arg key=value
+ctx.place    -- { universeId: number?, placeId: number?, version: number? }
+```
+
+`--arg` splits at the first `=`, so values may contain `=`; giving the same
+key twice is a usage error. Locally, `ctx.place` has the IDs only with
+`--place-id`, and never a version. Under `--cloud` it has the universe, place
+and the version the task ran on.
+
+Use `ctx.host` to skip what only one host can do. For example, server-only
+tests can only pass under `--cloud`, because Studio runs scripts in edit mode
+(see [Differences from local runs](#differences-from-local-runs)):
+
+```luau
+local ctx = ...
+if ctx.host == "local" then
+	print("skipping server-only tests")
+end
+```
+
+Only the script itself gets the context; required modules don't.
 
 ## Output
 
@@ -240,6 +272,8 @@ The task is a headless server, not Studio's edit mode. What we found is in
   line, as locally.
 - Your script is compiled as the body of a function, so a top-level
   `export type` is a compile error under `--cloud`.
+- The task script, with your source and `--arg` values embedded, is limited
+  to 4 MB.
 - A `.rbxlx` file has trailing whitespace trimmed before upload: Roblox rejects
   XML with a newline after `</roblox>`.
 - **Tasks can't be cancelled.** If studio-run gives up waiting (or you press
