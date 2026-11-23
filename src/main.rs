@@ -65,7 +65,7 @@ struct StudioArg {
 struct CloudArgs {
     /// Run as an Open Cloud Luau Execution task instead of in local Studio.
     /// Also STUDIO_RUN_HOST=cloud.
-    #[arg(long, visible_alias = "rocale")]
+    #[arg(long)]
     cloud: bool,
 
     /// Environment variable holding the Open Cloud API key [default: ROBLOX_API_KEY].
