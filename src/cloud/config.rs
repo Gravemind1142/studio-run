@@ -5,7 +5,6 @@
 //! universe-id = 111
 //! place-id = 444
 //! api-key-env = "TEST_KEY"
-//! upload = true   # this place is disposable; --place may upload to it
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -28,7 +27,6 @@ pub struct Section {
     pub universe_id: Option<u64>,
     pub place_id: Option<u64>,
     pub api_key_env: Option<String>,
-    pub upload: Option<bool>,
 }
 
 /// Settings from the command line, which win over the file.
@@ -37,7 +35,6 @@ pub struct Flags {
     pub universe_id: Option<u64>,
     pub place_id: Option<u64>,
     pub api_key_env: Option<String>,
-    pub allow_upload: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -45,7 +42,6 @@ pub struct Settings {
     pub universe_id: u64,
     pub place_id: u64,
     pub api_key_env: String,
-    pub upload_allowed: bool,
     /// The config file used, if any.
     pub file: Option<PathBuf>,
 }
@@ -103,7 +99,6 @@ fn resolve(flags: &Flags, file: &Section, path: Option<PathBuf>) -> Result<Setti
             .clone()
             .or_else(|| file.api_key_env.clone())
             .unwrap_or_else(|| DEFAULT_KEY_ENV.to_string()),
-        upload_allowed: flags.allow_upload || file.upload == Some(true),
         file: path,
     })
 }
@@ -118,19 +113,18 @@ mod tests {
 
     #[test]
     fn reads_the_cloud_section() {
-        let s = file(
-            "[cloud]\nuniverse-id = 111\nplace-id = 444\napi-key-env = \"K\"\nupload = true\n",
-        );
+        let s = file("[cloud]\nuniverse-id = 111\nplace-id = 444\napi-key-env = \"K\"\n");
         assert_eq!(s.universe_id, Some(111));
         assert_eq!(s.place_id, Some(444));
         assert_eq!(s.api_key_env.as_deref(), Some("K"));
-        assert_eq!(s.upload, Some(true));
     }
 
     #[test]
     fn rejects_unknown_keys() {
         assert!(parse("[cloud]\nuniverse = 1\n").is_err());
         assert!(parse("[clod]\n").is_err());
+        // Uploading places isn't supported.
+        assert!(parse("[cloud]\nupload = true\n").is_err());
     }
 
     #[test]
@@ -155,25 +149,6 @@ mod tests {
         };
         let s = resolve(&flags, &Section::default(), None).unwrap();
         assert_eq!(s.api_key_env, DEFAULT_KEY_ENV);
-        assert!(!s.upload_allowed);
-    }
-
-    #[test]
-    fn upload_needs_the_flag_or_the_file() {
-        let base = Flags {
-            universe_id: Some(1),
-            place_id: Some(2),
-            ..Default::default()
-        };
-        let allowed =
-            |flags: &Flags, f: &str| resolve(flags, &file(f), None).unwrap().upload_allowed;
-        assert!(!allowed(&base, "[cloud]\nupload = false\n"));
-        assert!(allowed(&base, "[cloud]\nupload = true\n"));
-        let flag = Flags {
-            allow_upload: true,
-            ..base.clone()
-        };
-        assert!(allowed(&flag, ""));
     }
 
     #[test]

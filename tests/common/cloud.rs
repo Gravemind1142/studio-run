@@ -6,7 +6,6 @@
 
 use std::collections::HashMap;
 use std::fmt;
-use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -339,32 +338,4 @@ pub fn binary_output(task: &Value) -> Vec<u8> {
     let mut bytes = Vec::new();
     std::io::Read::read_to_end(&mut resp.into_reader(), &mut bytes).unwrap();
     bytes
-}
-
-/// Uploads a place file as a new version with the legacy Place Publishing API.
-/// `version_type` is "Saved" or "Published". An `.rbxlx` file has trailing
-/// whitespace trimmed first, because the API rejects XML with a newline after
-/// `</roblox>` (docs/cloud-behavior.md). Returns the response.
-pub fn upload_place(file: &Path, version_type: &str) -> Reply {
-    let data = std::fs::read(file).unwrap();
-    match file.extension().and_then(|e| e.to_str()) {
-        Some("rbxlx") => upload_place_bytes(data.trim_ascii_end(), "application/xml", version_type),
-        _ => upload_place_bytes(&data, "application/octet-stream", version_type),
-    }
-}
-
-/// Uploads place file bytes exactly as given (see `upload_place`).
-pub fn upload_place_bytes(data: &[u8], content_type: &str, version_type: &str) -> Reply {
-    let env = cloud_env();
-    let url = format!(
-        "{BASE}/universes/v1/{}/places/{}/versions?versionType={version_type}",
-        env.universe_id, env.place_id
-    );
-    reply(
-        agent()
-            .post(&url)
-            .set("x-api-key", &env.api_key)
-            .set("Content-Type", content_type)
-            .send_bytes(data),
-    )
 }

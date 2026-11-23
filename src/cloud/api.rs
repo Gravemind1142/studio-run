@@ -1,5 +1,5 @@
-//! A minimal Open Cloud client: upload a place version, create and poll a Luau
-//! Execution task, read its logs and download its binary output.
+//! A minimal Open Cloud client: create and poll a Luau Execution task, read
+//! its logs and download its binary output.
 //! Behaviour it relies on is in docs/cloud-behavior.md.
 
 use std::time::{Duration, Instant};
@@ -197,55 +197,6 @@ impl Client {
                 other => return other,
             }
         }
-    }
-
-    /// Uploads a place file as a new Saved version and returns its number.
-    /// Only rate limiting is retried: other failures might have created a version.
-    pub fn upload_place(
-        &self,
-        universe_id: u64,
-        place_id: u64,
-        data: &[u8],
-        xml: bool,
-        deadline: Instant,
-    ) -> Result<u64, ApiError> {
-        let url = format!(
-            "{}/universes/v1/{universe_id}/places/{place_id}/versions?versionType=Saved",
-            self.base
-        );
-        let content_type = if xml {
-            "application/xml"
-        } else {
-            "application/octet-stream"
-        };
-        let body = Self::retrying(deadline, || {
-            let r = Self::finish(
-                self.agent
-                    .post(&url)
-                    .set("x-api-key", &self.key)
-                    .set("Content-Type", content_type)
-                    .send_bytes(data),
-            );
-            match r {
-                Err(e) if e.code != "rate_limited" => Err(ApiError {
-                    retry_after: None,
-                    code: if e.code == "network" || e.code == "server" {
-                        "upload_failed"
-                    } else {
-                        e.code
-                    },
-                    ..e
-                }),
-                other => other,
-            }
-        })?;
-        let v: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
-        v["versionNumber"].as_u64().ok_or_else(|| ApiError {
-            code: "upload_failed",
-            status: None,
-            message: format!("no versionNumber in the upload response: {body}"),
-            retry_after: None,
-        })
     }
 
     /// Creates a task on `version` (or the latest version) and returns it.

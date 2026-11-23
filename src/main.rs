@@ -87,8 +87,7 @@ struct RunArgs {
     /// The .lua/.luau script to run.
     script: PathBuf,
 
-    /// Place file to run in (default: an empty baseplate). With --cloud, it's
-    /// uploaded as a new Saved version of the place (needs --allow-upload).
+    /// Place file to run in (default: an empty baseplate). Local only.
     #[arg(long)]
     place: Option<PathBuf>,
 
@@ -147,15 +146,10 @@ struct RunArgs {
     cloud: CloudArgs,
 
     /// --cloud: run on this existing place version instead of the latest.
-    #[arg(long, value_name = "N", conflicts_with = "place")]
+    #[arg(long, value_name = "N")]
     place_version: Option<u64>,
 
-    /// --cloud: allow --place to upload a new Saved version to the place.
-    #[arg(long)]
-    allow_upload: bool,
-
-    /// --cloud: seconds allowed for uploading and for the task to start, on
-    /// top of --timeout.
+    /// --cloud: seconds allowed for the task to start, on top of --timeout.
     #[arg(long, default_value_t = 120, value_name = "S")]
     queue_timeout: u64,
 
@@ -308,6 +302,13 @@ fn cmd_run_cloud(
     if !a.studio_args.is_empty() {
         return usage("extra Studio arguments (after --) can't be used with --cloud");
     }
+    if a.place.is_some() {
+        // Uploading the file would add a version to the place for every run.
+        return usage(
+            "--place isn't supported with --cloud; publish the place yourself, then run on \
+             its latest version or pick one with --place-version",
+        );
+    }
     if a.grace.is_some() {
         note("--grace is ignored with --cloud");
     }
@@ -320,13 +321,11 @@ fn cmd_run_cloud(
     cloud::run(&cloud::CloudOptions {
         source,
         chunk_name,
-        place_file: a.place,
         place_version: a.place_version,
         flags: cloud::config::Flags {
             universe_id: a.universe_id,
             place_id: a.place_id,
             api_key_env: a.cloud.api_key_env,
-            allow_upload: a.allow_upload,
         },
         config: a.cloud.config,
         timeout: Duration::from_secs(a.timeout),
@@ -347,7 +346,6 @@ fn cmd_doctor_cloud(a: DoctorArgs) -> i32 {
             universe_id: a.universe_id,
             place_id: a.place_id,
             api_key_env: a.cloud.api_key_env,
-            allow_upload: false,
         },
         config: a.cloud.config,
     })
@@ -378,8 +376,8 @@ mod local {
         chunk_name: String,
         args: BTreeMap<String, String>,
     ) -> i32 {
-        if a.place_version.is_some() || a.allow_upload {
-            return usage("--place-version and --allow-upload need --cloud");
+        if a.place_version.is_some() {
+            return usage("--place-version needs --cloud");
         }
         let target = match (a.place, a.place_id, a.universe_id) {
             (Some(_), Some(_), _) => {

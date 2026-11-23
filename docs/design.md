@@ -106,9 +106,8 @@ studio-run calls the Open Cloud API itself (`src/cloud/api.rs`) rather than
 shelling out to rocale-cli. rocale-cli's output and exit codes aren't
 documented, so mapping them onto studio-run's would be guesswork; studio-run
 needs the exact task request (timeout, binary output) and its result; and it
-avoids a second tool and release cadence. The client only needs to upload a
-place version, create and poll a task, read its logs and download its binary
-output.
+avoids a second tool and release cadence. The client only needs to create and poll a
+task, read its logs and download its binary output.
 
 ### The user's source becomes a ModuleScript
 
@@ -171,28 +170,37 @@ Output therefore arrives when the task finishes, not while it runs.
 ### Deadlines, retries, no cancelling
 
 `--timeout` is the task's own timeout: how long the script may run, at most
-300 s. Uploading and waiting for the task to start get `--queue-timeout` on
-top, and studio-run gives up when both have passed (exit 124).
+300 s. Waiting for the task to start gets `--queue-timeout` on top, and
+studio-run gives up when both have passed (exit 124).
 
 429s and 5xx are retried with backoff, respecting `retry-after`, until that
 deadline. A failed task creation never created a task, so it's safe to
-retry. An upload is retried only on 429, because other failures might have
-created a version.
+retry.
 
 Tasks can't be cancelled. When studio-run gives up or is interrupted, the
 task runs on until it finishes or reaches its timeout. studio-run says so and
 names the task.
 
-### Uploads are explicit
+### No place uploads
 
-`--place` uploads the file as a new Saved (unpublished) version, which becomes
-the place's latest: what Studio and Team Create open next, and what tasks
-created without a version run on. So it needs `--allow-upload`, or
-`upload = true` in `studio-run.toml` to mark a place as disposable. Saved
-versions can run tasks, so nothing is ever published. The upload uses the
-legacy place-versions endpoint, because it returns the version number a task
-needs, and `.rbxlx` files have trailing whitespace trimmed first because that
-endpoint rejects XML with a newline after `</roblox>`.
+Tasks run on a version of a place that already exists: its latest, or
+`--place-version`. `--place <file>` is a usage error under `--cloud`.
+
+Running a local place file would mean uploading it as a new place version
+first, and every run would add one. That fills the place's version history,
+and the upload becomes the place's latest version, which is what Studio and
+Team Create open next. Neither upload API avoids it:
+
+- The legacy place-versions endpoint (`POST /universes/v1/…/versions`) is
+  marked experimental in Roblox's docs.
+- The Assets API (`PATCH /assets/v1/assets/{placeId}`) is beta. Its
+  permission can't be restricted to one experience, so a key with it can change
+  every asset on the account.
+
+So publishing a place to run on is left to the user, in Studio, and the key
+needs nothing beyond Luau execution sessions. What we found about both upload
+APIs before deciding this is in
+[cloud-behavior.md](cloud-behavior.md#place-versions) (issue #7).
 
 ### One checksum file per release
 

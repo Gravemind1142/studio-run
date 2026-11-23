@@ -228,42 +228,23 @@ fn no_capture_reports_prints_as_other() {
 
 #[test]
 #[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
-fn place_upload_with_real_require_then_place_version() {
-    let place = fixture("modules.rbxlx");
-    let o = run_jsonl(
-        "modules.luau",
-        &["--place", place.to_str().unwrap(), "--allow-upload"],
-    );
-    assert_eq!(o.code, 1); // Greeter.boom() errors
-    assert_eq!(o.script_output("print"), ["hi tests"]);
-    assert!(
-        o.events()
-            .iter()
-            .any(|e| e["source"] == "other" && e["message"] == "Greeter.greet says hi to tests")
-    );
+fn place_version_runs_on_that_version() {
+    let o = run_jsonl("print_warn.luau", &[]);
+    assert_eq!(o.code, 0);
     let version = o.events()[0]["placeVersion"].as_u64().unwrap();
 
-    // The same version again, without uploading.
     let v = version.to_string();
-    let o = run_jsonl("modules.luau", &["--place-version", &v]);
-    assert_eq!(o.code, 1);
+    let o = run_jsonl("print_warn.luau", &["--place-version", &v]);
+    assert_eq!(o.code, 0);
     assert_eq!(o.events()[0]["placeVersion"], version);
-    assert_eq!(o.script_output("print"), ["hi tests"]);
+    assert_eq!(o.script_output("print"), ["hello 1 true"]);
 }
 
 #[test]
 #[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
 fn trace_modules_attributes_module_output() {
-    let place = fixture("modules.rbxlx");
-    let o = run_jsonl(
-        "modules.luau",
-        &[
-            "--place",
-            place.to_str().unwrap(),
-            "--allow-upload",
-            "--trace-modules",
-        ],
-    );
+    // The test place is tests/fixtures/modules.rbxlx (docs/cloud-testing.md).
+    let o = run_jsonl("modules.luau", &["--trace-modules"]);
     assert_eq!(o.code, 1); // Greeter.boom() errors
     assert_eq!(
         o.script_output("print"),
@@ -316,7 +297,7 @@ fn usage_errors_exit_2() {
     for args in [
         vec!["run", script, "--visible"],
         vec!["run", script, "--timeout", "301"],
-        vec!["run", script, "--place", place.to_str().unwrap()], // no --allow-upload
+        vec!["run", script, "--place", place.to_str().unwrap()], // uploads aren't supported
         vec!["run", script, "--", "--someStudioArg"],
     ] {
         let o = cloud_run_with_key(&args, "unused", false);
