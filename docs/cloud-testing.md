@@ -22,6 +22,21 @@ There are two suites against the real API:
   recorded in [cloud-behavior.md](cloud-behavior.md), using the probes in
   `tests/cloud_probes/` and a minimal client in `tests/common/cloud.rs`.
 
+A third, `tests/parity.rs`, runs the same scripts locally in Studio and in the
+cloud and compares the events, allowing only the differences it lists (each
+with a link to its finding in cloud-behavior.md). It also needs a logged-in
+Studio, so it never runs in CI:
+
+```powershell
+cargo test --test parity -- --ignored --nocapture
+```
+
+To stay under the rate limit it runs several scripts in one task: it captures
+the task script studio-run generates for each (against the local mock), runs a
+batch of them in one real task, and feeds each one's output back to
+studio-run through the mock. If you add a script that can't share a task, set
+`own_task` on it.
+
 ## 1. Create a test experience
 
 Use a new experience that exists only for these tests. Tasks use the

@@ -61,7 +61,9 @@ after the user's file, sets its `Source` to `return function(...) <source>\nend`
 | **A compile error doesn't fail the task.** `require` raises only "Requested module experienced an error while loading"; the real message (`tests/compile.luau:2: Expected identifier …`) arrives through `LogService.MessageOut` as an error. | `module_loading.luau`. | `module_loading` |
 | `setfenv` on the function the module returns replaces `print` for the user's code; arguments passed to it arrive as `...`. | `module_loading.luau`. | `module_loading` |
 | Errors in threads the user's code spawns reach `ScriptContext.Error` with the module's name in the stack (`tests/async.luau, line 2`), the form the local wrapper already matches on. | `module_loading.luau`. | `module_loading` |
-| Required verbatim (not wrapped), a module must return exactly one value ("Module code did not return exactly one value"), but top-level `export type` is allowed. Wrapped, `export type` isn't (it's no longer top level). | `module_loading.luau`. | `module_loading` |
+| Required verbatim (not wrapped), a module must return exactly one value ("Module code did not return exactly one value"), and top-level `export type` is allowed. | `module_loading.luau`. | `module_loading` |
+| **Wrapped, top-level `export type` compiles and runs too**, as it does locally. (Recorded earlier as a compile error; it was never re-checked, and isn't one on engine 0.748.) | `export_type.luau` on both hosts. | `tests/parity.rs` |
+| **A compile error at the end of the source is reported one line later**, at the wrapper's closing `end`: `compile_error.luau:3: Expected identifier when parsing expression, got 'end'`, where Studio says `compile_error.luau:2: … got <eof>`. Errors elsewhere in the file have the file's own line numbers. | `compile_error.luau` on both hosts. | `tests/parity.rs` (an allowed difference) |
 
 ### Results and errors
 

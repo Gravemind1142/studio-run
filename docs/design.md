@@ -131,9 +131,11 @@ This beat the alternative, inlining the source into the task script:
   reports it as a `compile` result, as locally. Otherwise the task would fail
   with a `TaskScript:` message and no result.
 
-The cost: the source is a function body, so a top-level `export type` is a
-compile error under `--cloud`. Requiring the source verbatim would allow it,
-but a module must return exactly one value and gets no `...`.
+The cost: the source is a function body, so a compile error at the very end
+of the file is reported one line late, at the wrapper's closing `end` rather
+than at `<eof>`. (Top-level `export type` still compiles there.) Requiring the
+source verbatim would avoid that, but a module must return exactly one value
+and gets no `...`.
 
 ### Events come back in the binary output
 

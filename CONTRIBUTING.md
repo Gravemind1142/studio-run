@@ -73,7 +73,9 @@ gitignored `.env` file (copy `.env.example`). [docs/cloud-testing.md](docs/cloud
 through the setup. If your change touches the cloud host (`src/cloud/`), run
 `cargo test --test cloud -- --ignored --test-threads=1` and say in the pull
 request that it passed; if it touches the local host, run `tests/studio.rs` as
-above.
+above. If it touches either wrapper or the events, also run
+`cargo test --test parity -- --ignored`, which needs both Studio and the cloud
+setup and checks that the two hosts report the same events.
 
 ## Pull requests
 

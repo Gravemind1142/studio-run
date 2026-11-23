@@ -238,8 +238,9 @@ The task is a headless server, not Studio's edit mode. What we found is in
 - HttpService follows the experience's **Allow HTTP Requests** setting.
 - `script` is `nil`, as locally. Errors and tracebacks point at your file and
   line, as locally.
-- Your script is compiled as the body of a function, so a top-level
-  `export type` is a compile error under `--cloud`.
+- Your script is compiled as the body of a function, so a compile error at
+  the very end of the file (an unfinished statement) is reported one line
+  past it, at `end`, under `--cloud`.
 - A `.rbxlx` file has trailing whitespace trimmed before upload: Roblox rejects
   XML with a newline after `</roblox>`.
 - **Tasks can't be cancelled.** If studio-run gives up waiting (or you press
