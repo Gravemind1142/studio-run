@@ -4,7 +4,7 @@ The `--cloud` host ([design.md](design.md#the-cloud-host---cloud)) runs scripts
 as [Open Cloud Luau Execution](https://create.roblox.com/docs/cloud/reference/features/luau-execution)
 tasks. The API reference leaves a lot out. This file records what we found by
 running tasks, how we found it, and which check in
-[tests/cloud_behavior.rs](../tests/cloud_behavior.rs) re-tests it. It's the
+[tests/cloud_behavior.rs](../../tests/cloud_behavior.rs) re-tests it. It's the
 cloud counterpart of [studio-behavior.md](studio-behavior.md).
 
 Last checked: engine **0.748.0.7481528** (`version()` inside a task),

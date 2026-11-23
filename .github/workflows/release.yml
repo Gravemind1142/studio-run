@@ -79,7 +79,7 @@ jobs:
 
       # Foreman, Rokit and Aftman pick the asset whose name contains the OS
       # and architecture, and expect a zip holding just the executable at its
-      # root. Checked against their sources: see docs/design.md.
+      # root. Checked against their sources: see docs/internals/design.md.
       - name: Package
         shell: bash
         env:

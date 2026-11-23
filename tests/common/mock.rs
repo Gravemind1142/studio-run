@@ -3,7 +3,7 @@
 //!
 //! It answers each request with whatever the test's handler returns, and
 //! records every request so the test can check exactly what studio-run sent.
-//! What the responses look like follows docs/cloud-behavior.md, which the
+//! What the responses look like follows docs/internals/cloud-behavior.md, which the
 //! weekly real-API runs re-check.
 
 use std::collections::HashMap;

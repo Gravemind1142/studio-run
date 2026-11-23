@@ -2,9 +2,9 @@
 //! `--cloud` host relies on.
 //!
 //! Each test runs a probe from tests/cloud_probes as a real task in your test
-//! experience and checks findings from docs/cloud-behavior.md. When one fails,
-//! Roblox has changed: update the doc, and studio-run or docs/design.md if needed.
-//! Needs the setup in docs/cloud-testing.md; ignored by default.
+//! experience and checks findings from docs/internals/cloud-behavior.md. When one fails,
+//! Roblox has changed: update the doc, and studio-run or docs/internals/design.md if needed.
+//! Needs the setup in docs/internals/cloud-testing.md; ignored by default.
 //!
 //!     cargo test --test cloud_behavior -- --ignored --nocapture --test-threads=1
 //!
@@ -73,7 +73,7 @@ fn is_error_string(v: &Value, containing: &str) -> bool {
 
 /// The environment a task runs in (cloud-behavior.md, "Environment").
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn environment() {
     let task = run_task(&probe("environment.luau"), &TaskOptions::default());
     report("environment", &summary(&task));
@@ -112,7 +112,7 @@ fn environment() {
 
 /// How return values come back in output.results.
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn return_values() {
     let task = run_task(&probe("return_values.luau"), &TaskOptions::default());
     report("return_values", &summary(&task));
@@ -129,7 +129,7 @@ fn return_values() {
 
 /// A task script that doesn't compile fails the task, with no logs.
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn compile_error() {
     let task = run_task(&probe("compile_error.luau"), &TaskOptions::default());
     report("compile_error", &summary(&task));
@@ -144,7 +144,7 @@ fn compile_error() {
 
 /// An uncaught error fails the task; the message has no traceback, the logs do.
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn runtime_error() {
     let task = run_task(&probe("runtime_error.luau"), &TaskOptions::default());
     report("runtime_error", &summary(&task));
@@ -166,9 +166,9 @@ fn runtime_error() {
     );
 }
 
-/// The user's source compiled as a ModuleScript: the cloud wrapper's approach (docs/design.md).
+/// The user's source compiled as a ModuleScript: the cloud wrapper's approach (docs/internals/design.md).
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn module_loading() {
     let task = run_task(&probe("module_loading.luau"), &TaskOptions::default());
     report("module_loading", &summary(&task));
@@ -226,7 +226,7 @@ fn module_loading() {
 
 /// Timeouts: the maximum, and what a timed-out task leaves behind.
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn timeouts() {
     let env = cloud_env();
     let url = format!(
@@ -263,7 +263,7 @@ fn timeouts() {
 
 /// Logs are empty until the task finishes, and there's no way to cancel a task.
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn logs_while_running_and_cancel() {
     let task = create_task(
         &probe("slow.luau"),
@@ -325,7 +325,7 @@ fn logs_while_running_and_cancel() {
 
 /// Binary input arrives as the task's only argument; binary output round-trips.
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn binary_input_and_output() {
     let data: Vec<u8> = (0..1000u32).map(|i| (i % 251) as u8).collect();
     let (input, method) = create_binary_input(&data);
@@ -355,10 +355,10 @@ fn binary_input_and_output() {
 }
 
 /// A place's own ModuleScripts can be loaded the way --trace-modules does it
-/// under --cloud (docs/design.md). The probe creates the module itself, since
+/// under --cloud (docs/internals/design.md). The probe creates the module itself, since
 /// the test place is an empty baseplate.
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn place_modules() {
     let task = run_task(&probe("place_modules.luau"), &TaskOptions::default());
     report("place_modules", &summary(&task));
@@ -414,7 +414,7 @@ fn place_modules() {
 
 /// Structured logging (LogService:Info/Warn/... with a context table, Loggers).
 #[test]
-#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn structured_logs() {
     let task = run_task(&probe("structured_logs.luau"), &TaskOptions::default());
     report("structured_logs", &summary(&task));

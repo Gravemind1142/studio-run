@@ -3,7 +3,7 @@
 -- Cloud Luau Execution task. Runs the user's script and reports what happens
 -- as the same events as the local wrapper (src/wrapper.luau).
 --
--- Differences from the local wrapper (see docs/cloud-behavior.md):
+-- Differences from the local wrapper (see docs/internals/cloud-behavior.md):
 -- * Tasks have no loadstring, so the user's source is compiled as a
 --   ModuleScript named after the file, wrapped in `return function(...)`.
 --   With --trace-modules, required ModuleScripts are compiled the same way.
@@ -17,7 +17,7 @@ local CHUNK_NAME = __SR_CHUNK__ -- "name.luau": used in errors and tracebacks
 local CAPTURE_PRINT = __SR_CAPTURE__
 local TRACE_MODULES = __SR_TRACE__
 local SEND_BINARY_OUTPUT = __SR_BINARY_OUTPUT__ -- --binary-output was given
--- The script's first vararg (`local ctx = ...`); see README, "Script context".
+-- The script's first vararg (`local ctx = ...`); see docs/guide/writing-scripts.md.
 -- `inputs` and `setBinaryOutput` are added below.
 local CONTEXT = __SR_CONTEXT__
 -- Only known once the task runs when it's the latest version.
@@ -346,9 +346,9 @@ local function makeEnv(scriptValue)
 end
 
 -- Opt-in (--trace-modules): load ModuleScripts ourselves so their output and
--- errors are attributed to them. Not the real `require`; see README. Each
--- module is compiled under its full name, as the local wrapper's loadstring
--- names it.
+-- errors are attributed to them. Not the real `require`; see
+-- docs/guide/test-runners.md. Each module is compiled under its full name, as
+-- the local wrapper's loadstring names it.
 local moduleCache = {}
 local LOADING = {}
 tracedRequire = function(target)

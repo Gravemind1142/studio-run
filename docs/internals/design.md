@@ -34,7 +34,7 @@ change it. What the installed Studio actually did is recorded in
 
 studio-run builds Studio's command line itself, and there's no way to pass
 your own `--runScriptFile` to `run`. The script is embedded in a wrapper
-generated from [src/wrapper.luau](../src/wrapper.luau), as a `\ddd`-escaped
+generated from [src/wrapper.luau](../../src/wrapper.luau), as a `\ddd`-escaped
 string literal, which works for any bytes, unlike a long-bracket string.
 (`studio-run raw` launches Studio with no wrapper, for the behaviour checks.)
 
@@ -68,8 +68,10 @@ matched to the script by chunk name, and the copy of the same error that
 ## Events
 
 The wrapper prints events as short JSON lines starting with a sentinel. Studio
-writes them to its log, which studio-run reads while Studio runs, since the
-`--outputFile` is only written at the end.
+writes them to its log (`%LOCALAPPDATA%\Roblox\logs` on Windows,
+`~/Library/Logs/Roblox` on macOS), which studio-run reads while Studio runs,
+since the `--outputFile` is only written at the end. The output file is read
+as a fallback once Studio exits.
 
 Studio's log cuts lines at about 1,000 characters, so events are split into
 pieces of at most 600 bytes with a `more` flag. A context is sent as JSON text
@@ -154,7 +156,7 @@ task, read its logs and download its binary output.
 ### The user's source becomes a ModuleScript
 
 Tasks have no `loadstring`. The cloud wrapper
-([src/cloud/wrapper.luau](../src/cloud/wrapper.luau)) creates a ModuleScript
+([src/cloud/wrapper.luau](../../src/cloud/wrapper.luau)) creates a ModuleScript
 named after the file, sets its `Source` to `return function(...) <source>\nend`
 with the source starting on line 1, and requires it. Then it does what the
 local wrapper does with `loadstring`'s result: `setfenv` for `print`/`warn`,

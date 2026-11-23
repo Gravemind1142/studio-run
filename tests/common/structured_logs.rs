@@ -1,6 +1,6 @@
 //! Checks for the structured-logging probes (tests/probes/structured_logs.luau
 //! and tests/cloud_probes/structured_logs.luau), which report the same table
-//! locally and in the cloud. Findings: docs/studio-behavior.md, "Structured
+//! locally and in the cloud. Findings: docs/internals/studio-behavior.md, "Structured
 //! logging".
 
 use serde_json::{Value, json};

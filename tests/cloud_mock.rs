@@ -3,7 +3,7 @@
 //! request that the requests studio-run makes, and how it handles each kind of
 //! response, haven't changed by accident.
 //!
-//! The mock's responses follow what the real API does (docs/cloud-behavior.md).
+//! The mock's responses follow what the real API does (docs/internals/cloud-behavior.md).
 //! The weekly cloud workflow runs tests/cloud.rs and tests/cloud_behavior.rs
 //! against the real API, to catch Roblox changing it.
 

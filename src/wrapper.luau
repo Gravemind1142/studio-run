@@ -7,7 +7,7 @@ local CHUNK_NAME = __SR_CHUNK__ -- "=name.luau": name used in errors/tracebacks
 local CAPTURE_PRINT = __SR_CAPTURE__
 local TRACE_MODULES = __SR_TRACE__
 local SEND_BINARY_OUTPUT = __SR_BINARY_OUTPUT__ -- --binary-output was given
--- The script's first vararg (`local ctx = ...`); see README, "Script context".
+-- The script's first vararg (`local ctx = ...`); see docs/guide/writing-scripts.md.
 -- `inputs` and `setBinaryOutput` are added below.
 local CONTEXT = __SR_CONTEXT__
 local INPUTS = __SR_INPUTS__ -- { [name] = bytes } from --input
@@ -253,7 +253,7 @@ local function makeEnv(scriptValue)
 end
 
 -- Opt-in (--trace-modules): load ModuleScripts ourselves so their output and
--- errors are attributed to them. Not the real `require`; see README.
+-- errors are attributed to them. Not the real `require`; see docs/guide/test-runners.md.
 local moduleCache = {}
 local LOADING = {}
 tracedRequire = function(target)

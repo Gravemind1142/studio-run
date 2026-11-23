@@ -3,7 +3,7 @@
 Studio's [command-line options](https://create.roblox.com/docs/studio/cli)
 are only partly documented, and some of the documentation is wrong for
 Windows. This file records what we found by running Studio, how we found it,
-and which check in [tests/behavior.rs](../tests/behavior.rs) re-tests it.
+and which check in [tests/behavior.rs](../../tests/behavior.rs) re-tests it.
 [design.md](design.md) explains how studio-run is built around these findings.
 
 Last checked: Studio **0.748.0.7481526** on Windows 11, 2026-11-22.

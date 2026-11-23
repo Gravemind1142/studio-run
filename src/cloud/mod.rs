@@ -1,5 +1,5 @@
 //! The cloud host (`--cloud`): run a script as an Open Cloud Luau Execution
-//! task. See docs/design.md and docs/cloud-behavior.md.
+//! task. See docs/internals/design.md and docs/internals/cloud-behavior.md.
 
 pub mod api;
 pub mod config;
@@ -33,7 +33,7 @@ pub struct CloudOptions {
     pub format: Format,
     pub filter: OutputFilter,
     pub capture_print: bool,
-    /// Load required ModuleScripts ourselves (opt-in; see README).
+    /// Load required ModuleScripts ourselves (opt-in; see docs/guide/test-runners.md).
     pub trace_modules: bool,
     pub keep_temp: bool,
     /// From `--arg key=value`, for the script's context.
@@ -56,7 +56,7 @@ fn setup(flags: &config::Flags) -> Result<(config::Settings, Client), i32> {
         .filter(|k| !k.is_empty());
     let Some(key) = key else {
         note(&format!(
-            "set {} to an Open Cloud API key (or pass --api-key-env); see the README",
+            "set {} to an Open Cloud API key (or pass --api-key-env); see docs/guide/cloud.md",
             settings.api_key_env
         ));
         return Err(EXIT_USAGE);
@@ -456,7 +456,7 @@ pub fn doctor(opts: &DoctorOptions) -> i32 {
             if r["moduleScripts"] != true {
                 println!(
                     "FAILED: the task can't require a ModuleScript it creates; --cloud relies on that \
-                     (see docs/cloud-behavior.md)."
+                     (see docs/internals/cloud-behavior.md)."
                 );
                 return EXIT_TOOL_ERROR;
             }

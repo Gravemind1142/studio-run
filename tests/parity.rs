@@ -3,7 +3,7 @@
 //! `ALLOWED` below.
 //!
 //! It needs both a logged-in Studio and the test experience and key from
-//! docs/cloud-testing.md, so it's ignored by default and can't run in CI:
+//! docs/internals/cloud-testing.md, so it's ignored by default and can't run in CI:
 //!
 //!     cargo test --test parity -- --ignored --nocapture
 //!
@@ -109,7 +109,7 @@ struct Difference {
 
 const ALLOWED: &[Difference] = &[Difference {
     file: "compile_error.luau",
-    finding: "docs/cloud-behavior.md#compiling-the-users-source-as-a-modulescript",
+    finding: "docs/internals/cloud-behavior.md#compiling-the-users-source-as-a-modulescript",
     what: "the cloud closes the source with `\\nend`, so a compile error at the \
            end of the file is reported a line later, at `end` instead of <eof>",
     check: |local, cloud| {
@@ -405,7 +405,7 @@ fn run_cloud(cases: &[&Case]) -> Vec<Output> {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "needs a logged-in Studio and an Open Cloud test experience; see docs/cloud-testing.md"]
+#[ignore = "needs a logged-in Studio and an Open Cloud test experience; see docs/internals/cloud-testing.md"]
 fn local_and_cloud_events_match() {
     let cases: Vec<&Case> = CASES.iter().collect();
     for d in ALLOWED {
