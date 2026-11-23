@@ -4,7 +4,9 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct TempDir {
-    /// Unique per run; also identifies the run in Studio's log.
+    /// Unique per run; also identifies the run in Studio's log. Only the
+    /// local host reads it, so it goes unread on Linux.
+    #[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
     pub id: String,
     pub path: PathBuf,
     keep: bool,
