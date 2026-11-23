@@ -57,6 +57,13 @@ jobs:
             arch: x86_64
             bin: studio-run
             test: false
+          # Linux has no Studio: this build runs --cloud only.
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset_os: linux
+            arch: x86_64
+            bin: studio-run
+            test: true
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -71,7 +78,8 @@ jobs:
         run: cargo build --locked --release --target ${{ matrix.target }}
 
       # Foreman, Rokit and Aftman pick the asset whose name contains the OS
-      # and architecture, and expect a zip holding just the executable.
+      # and architecture, and expect a zip holding just the executable at its
+      # root. Checked against their sources: see docs/design.md.
       - name: Package
         shell: bash
         env:
@@ -81,21 +89,22 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           if command -v python3 >/dev/null 2>&1; then PY=python3; else PY=python; fi
-          "$PY" -c 'import hashlib, os, zipfile
+          "$PY" -c 'import os, stat, zipfile
           from pathlib import Path
           bin_path = Path(os.environ["BIN"])
-          name = os.environ["NAME"]
-          dest = Path("dist") / name
-          with zipfile.ZipFile(dest, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-              archive.write(bin_path, arcname=bin_path.name)
-          digest = hashlib.sha256(dest.read_bytes()).hexdigest()
-          (dest.parent / (name + ".sha256")).write_text("%s  %s\n" % (digest, name))
+          dest = Path("dist") / os.environ["NAME"]
+          info = zipfile.ZipInfo(bin_path.name)
+          info.compress_type = zipfile.ZIP_DEFLATED
+          info.external_attr = (stat.S_IFREG | 0o755) << 16  # executable when unzipped
+          with zipfile.ZipFile(dest, "w") as archive:
+              archive.writestr(info, bin_path.read_bytes())
           '
 
       - uses: actions/upload-artifact@v4
         with:
           name: studio-run-${{ matrix.asset_os }}-${{ matrix.arch }}
           path: dist/*
+          if-no-files-found: error
 
   publish:
     name: Publish release
@@ -107,19 +116,27 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      # One checksum file, with no platform words in its name: a per-zip
+      # `<zip>.sha256` also matches Foreman's substring search, and Foreman
+      # would try to install it if it were listed before the zip.
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum studio-run-*.zip | tee SHA256SUMS
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           shopt -s nullglob
-          files=(dist/*.zip dist/*.sha256)
-          if [ "${#files[@]}" -ne 6 ]; then
-            echo "expected 3 zips and 3 checksums, found ${#files[@]}: ${files[*]}" >&2
+          zips=(dist/*.zip)
+          if [ "${#zips[@]}" -ne 4 ]; then
+            echo "expected 4 zips, found ${#zips[@]}: ${zips[*]}" >&2
             exit 1
           fi
           flags=(--verify-tag --generate-notes --title "$GITHUB_REF_NAME")
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then
             flags+=(--prerelease)
           fi
-          gh release create "$GITHUB_REF_NAME" "${files[@]}" "${flags[@]}"
+          gh release create "$GITHUB_REF_NAME" "${zips[@]}" dist/SHA256SUMS "${flags[@]}"

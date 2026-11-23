@@ -29,6 +29,3 @@ mod windows;
 
 #[cfg(target_os = "macos")]
 mod macos;
-
-#[cfg(not(any(windows, target_os = "macos")))]
-compile_error!("studio-run supports Windows and macOS");

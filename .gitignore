@@ -1,1 +1,4 @@
 /target
+
+# Open Cloud test settings (see .env.example)
+.env

@@ -12,13 +12,30 @@ steal focus or interrupt you, and several runs can go at once. On macOS, Studio
 is started with its own `--background` flag, which keeps it out of the
 foreground. The commands below are the same in either shell.
 
+The same script can also run in the cloud, as an
+[Open Cloud Luau Execution](https://create.roblox.com/docs/cloud/reference/features/luau-execution)
+task, with the same output format and exit codes. This works on Windows, Linux
+and macOS, with no Studio needed, so it suits CI:
+
+```powershell
+studio-run run smoke-test.luau --place game.rbxl --cloud
+```
+
+See [Running in the cloud](#running-in-the-cloud---cloud).
+
 ## Requirements
+
+For local runs:
 
 - Windows 10 or 11, or macOS.
 - Roblox Studio, installed and **logged in at least once** (studio-run reuses
   your saved login).
-- To build from source: Rust (stable). On Windows, also the Visual Studio C++
-  Build Tools.
+
+For `--cloud` runs: Windows, macOS or Linux, an experience to run in and an
+Open Cloud API key (see [below](#running-in-the-cloud---cloud)).
+
+To build from source: Rust (stable). On Windows, also the Visual Studio C++
+Build Tools.
 
 ## Install
 
@@ -38,8 +55,10 @@ rokit add Gravemind1142/studio-run
 ```
 
 Each [GitHub release](https://github.com/Gravemind1142/studio-run/releases)
-also has a zip with the executable in it (`studio-run.exe` on Windows,
-`studio-run` on macOS). Or build from source:
+also has a zip per platform (Windows x86_64, macOS aarch64 and x86_64, Linux
+x86_64) with the executable in it (`studio-run.exe` on Windows, `studio-run`
+elsewhere), and a `SHA256SUMS` file. The Linux build runs `--cloud` only. Or
+build from source:
 
 ```powershell
 cargo install --git https://github.com/Gravemind1142/studio-run
@@ -70,6 +89,7 @@ studio-run run <script.luau> [options] [-- <extra Studio args>]
 | `--visible` | | Show Studio's window on your desktop, for debugging. |
 | `--keep-temp` | | Keep the generated wrapper and output file. |
 | `--studio <exe>` | auto | Path to the Studio executable, or on macOS the `.app` bundle. Also `STUDIO_EXE`. |
+| `--cloud` | | Run as an Open Cloud Luau Execution task instead. See [below](#running-in-the-cloud---cloud). |
 
 ### Exit codes
 
@@ -80,7 +100,7 @@ studio-run run <script.luau> [options] [-- <extra Studio args>]
 | *n* | The script returned the number *n*, or `{ exitCode = n }`. |
 | `2` | Bad command-line usage. |
 | `124` | Timed out. |
-| `125` | studio-run problem: Studio not found, failed to start, or exited without the script reporting a result. |
+| `125` | studio-run problem: Studio not found, failed to start, or exited without the script reporting a result. With `--cloud`: the API refused a request (key, permissions, IDs), the place upload failed, or the task failed without the script reporting a result. |
 
 ### Writing scripts
 
@@ -133,17 +153,100 @@ In **jsonl format**, every event is printed (no filtering), one per line:
 
 | Field | Values |
 |---|---|
-| `kind` | `start`, `output`, `result`. `result` is always last. |
+| `kind` | `start`, `output`, `result`, `error`. `result` is always last when there is one. |
+| `host` (start) | `local` or `cloud` |
+| `universeId`, `placeId` (start) | The place the script ran in, when it's a published one. |
+| `placeVersion`, `taskId` (start) | `--cloud`: the place version and the task. |
 | `source` | `script` or `other` |
 | `level` | `print`, `info`, `warn`, `error` |
 | `reason` (result) | `returned`, `error`, `compile` |
+| `code` (error) | `--cloud` failures: `auth`, `permission`, `not_found`, `invalid_request`, `rate_limited`, `server`, `http`, `network`, `upload_failed`, `task_failed` |
 
-If Studio times out or never reports a result, there is no `result` event;
-use the exit code.
+If the run times out or never reports a result, there is no `result` event;
+use the exit code. An `error` event explains a `125` exit under `--cloud`.
 
 **Message size**: your script's own output can be any length. Output in
 the `other` group is cut off by Studio itself at about 100,000 characters per
 message.
+
+## Running in the cloud (`--cloud`)
+
+With `--cloud` (or `STUDIO_RUN_HOST=cloud`), the script runs as an
+[Open Cloud Luau Execution](https://create.roblox.com/docs/cloud/reference/features/luau-execution)
+task in a place you own, instead of in local Studio. Output, `--format`,
+`--output` and exit codes are the same. It works on Windows, Linux and macOS.
+
+### Setup
+
+1. **An experience for the runs.** Tasks use the experience's **real**
+   DataStores and other cloud data, so use one that exists only for this, not
+   your game. An empty Baseplate published from Studio is enough.
+2. **An API key** from the
+   [Creator Dashboard](https://create.roblox.com/dashboard/credentials),
+   restricted to that experience, with:
+   - **Luau execution sessions**: read and write
+     (`universe.place.luau-execution-session:read`/`:write`).
+   - **Places**: write (`universe-places:write`), if you use `--place`.
+   - **Accepted IP addresses**: your IP. CI runners such as GitHub's have
+     changing IPs and need `0.0.0.0/0`.
+3. Put the key in the `ROBLOX_API_KEY` environment variable (or another,
+   named with `--api-key-env`). The key is never accepted as an argument, so it
+   can't end up in shell history or CI logs.
+4. Name the place, either with `--universe-id` and `--place-id` or in a
+   `studio-run.toml` in your project (found in the current directory or a
+   parent):
+
+   ```toml
+   [cloud]
+   universe-id = 1234567890
+   place-id = 9876543210
+   api-key-env = "ROBLOX_API_KEY"   # optional
+   upload = true                    # optional: this place is disposable; let --place upload to it
+   ```
+
+5. Check it: `studio-run doctor --cloud` runs a trivial task.
+
+### Options
+
+| Option | Default | |
+|---|---|---|
+| `--place <file>` | | Upload the file as a new **Saved** (unpublished) version of the place, then run on it. Needs `--allow-upload` or `upload = true`, because the upload becomes the place's latest version. |
+| `--place-version <n>` | latest | Run on an existing version, without uploading. |
+| no place given | | Run on the place's latest version (Saved versions included). |
+| `--timeout <s>` | 300 | The task's timeout: at most 300, Roblox's limit. |
+| `--queue-timeout <s>` | 120 | Extra time allowed for uploading and for the task to start. The run gives up after `--queue-timeout` + `--timeout`. |
+| `--poll-interval <s>` | 2 | Seconds between task status checks. |
+| `--api-key-env <name>` | `ROBLOX_API_KEY` | Environment variable holding the key. |
+| `--config <file>` | `studio-run.toml` | Config file to use. |
+| `--keep-temp` | | Keep the generated task script and the final task (without its download URL). |
+
+Flags win over `studio-run.toml`. `--grace` and `--studio` are ignored with
+`--cloud`; `--visible`, `--trace-modules` and extra Studio arguments are usage
+errors (exit 2).
+
+### Differences from local runs
+
+The task is a headless server, not Studio's edit mode. What we found is in
+[docs/cloud-behavior.md](docs/cloud-behavior.md); in short:
+
+- **Output arrives when the task finishes**, not while it runs: Roblox only
+  makes it available then. With `--output verbose`, text format shows the
+  upload and task progress as `studio-run:` notes.
+- No plugins, no Plugin capability, no `loadstring`. `RunService:IsServer()`
+  is true; `IsRunning()` and `IsEdit()` are false. The place's own scripts
+  don't run and physics doesn't step.
+- HttpService follows the experience's **Allow HTTP Requests** setting.
+- `script` is `nil`, as locally. Errors and tracebacks point at your file and
+  line, as locally.
+- Your script is compiled as the body of a function, so a top-level
+  `export type` is a compile error under `--cloud`.
+- A `.rbxlx` file has trailing whitespace trimmed before upload: Roblox rejects
+  XML with a newline after `</roblox>`.
+- **Tasks can't be cancelled.** If studio-run gives up waiting (or you press
+  Ctrl+C), the task keeps running until it finishes or reaches its timeout.
+- Roblox allows 5 task creations per minute per account (across all your keys)
+  and 10 unfinished tasks per place. studio-run retries rate-limited requests
+  until `--queue-timeout` runs out.
 
 ## Test runners
 
@@ -192,6 +295,8 @@ studio-run doctor
 ```
 
 This finds Studio and runs a test script in it to check your setup.
+`studio-run doctor --cloud` instead checks your cloud settings and key and runs
+a trivial task.
 
 ## How it works
 
@@ -222,6 +327,7 @@ This finds Studio and runs a test script in it to check your setup.
 - On macOS, hiding Studio means its `--background` flag. That keeps the window
   out of the foreground today. It is not a private desktop, and a later Studio
   build could show a window. Re-run the behaviour checks after a Studio update.
+- Local runs need Windows or macOS. On Linux, only `--cloud` works.
 - Plugin output shows up in the `other` group. There's no way to tell plugin
   output apart from your modules' output.
 - Not tested: running while you have Studio open yourself, or after your saved
@@ -236,10 +342,18 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute, and
 [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ```powershell
-cargo test                                # unit tests
+cargo test                                # unit tests, and --cloud against a mock API
 cargo test --test studio -- --ignored     # end-to-end tests against real Studio (a few minutes)
 cargo test --test behavior -- --ignored   # check Studio still behaves as documented (~2 min)
+cargo test --test cloud -- --ignored --test-threads=1            # end-to-end --cloud tests (~3 min)
+cargo test --test cloud_behavior -- --ignored --test-threads=1   # check Open Cloud still behaves as documented
 ```
+
+The real-API cloud tests need a test experience and API key of your own, in a
+gitignored `.env`: see [docs/cloud-testing.md](docs/cloud-testing.md).
+`.github/workflows/cloud.yml` runs them weekly and on manual runs, with the
+maintainers' secrets, never on pull requests. On pull requests,
+`tests/cloud_mock.rs` checks `--cloud` against a local mock of the API instead.
 
 The end-to-end tests (`tests/studio.rs`) need Studio installed and logged in.
 They run up to three hidden Studio instances at once. CI can't run them (its
@@ -247,8 +361,8 @@ runners have no logged-in Studio), so run them locally before opening a PR
 that touches the wrapper, the sandbox or the log reader.
 
 CI (`.github/workflows/ci.yml`) runs on every pull request and push to `main`,
-on Windows and macOS: `cargo fmt --check`, `cargo clippy -D warnings`, the
-unit tests and a release build.
+on Windows, macOS and Linux: `cargo fmt --check`, `cargo clippy -D warnings`,
+the unit tests and a release build.
 
 ### Releasing
 
@@ -256,14 +370,19 @@ unit tests and a release build.
 2. Tag and push: `git tag v0.2.0` then `git push origin v0.2.0`.
 
 `.github/workflows/release.yml` checks that the tag matches `Cargo.toml`,
-builds, and publishes a GitHub release with these zips and their SHA-256 sums:
+builds, and publishes a GitHub release with these zips and one `SHA256SUMS`
+file:
 
 - `studio-run-<version>-windows-x86_64.zip`
 - `studio-run-<version>-macos-aarch64.zip`
 - `studio-run-<version>-macos-x86_64.zip`
+- `studio-run-<version>-linux-x86_64.zip` (`--cloud` only)
 
-Foreman and Rokit find the asset for the current OS by name, so keep the
-naming. A tag with a suffix, like `v0.2.0-rc.1`, becomes a pre-release.
+Foreman, Rokit and Aftman find the asset for the current OS by name, so keep
+the naming. Keep the checksums in the single `SHA256SUMS` file: a
+`<zip>.sha256` file also matches Foreman's name search, and Foreman would try
+to install it if it were listed first. A tag with a suffix, like
+`v0.2.0-rc.1`, becomes a pre-release.
 
 ### How Studio behaves
 

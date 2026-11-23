@@ -5,13 +5,13 @@ use serde::{Deserialize, Serialize};
 pub const SENTINEL: &str = "@@studio-run@@";
 pub const PROTOCOL: u32 = 1;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Event {
     #[serde(default, skip_serializing)]
     pub v: u32,
     pub seq: u64,
-    /// `start`, `output` or `result`.
+    /// `start`, `output`, `result`, or `error` (a host failure, from studio-run itself).
     pub kind: String,
     /// `output`: `script` (the user's script, or traced modules) or `other`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -27,6 +27,21 @@ pub struct Event {
     /// `start`: the script's chunk name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chunk: Option<String>,
+    /// `start`: `local` or `cloud`. Added by studio-run, not the wrapper.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    /// `start`, cloud: the universe, place, place version and task the script ran in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub universe_id: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub place_id: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub place_version: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
+    /// `error`: a stable code for a host failure (`auth`, `rate_limited`, ...).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
     /// `result`: whether the script finished without an uncaught error.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ok: Option<bool>,

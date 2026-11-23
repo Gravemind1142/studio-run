@@ -1,24 +1,32 @@
-//! studio-run: run Luau scripts in Roblox Studio without showing Studio's
-//! window. See README.md.
+//! studio-run: run Luau scripts in hidden Roblox Studio (Windows and macOS), or as
+//! Open Cloud Luau Execution tasks (`--cloud`, anywhere). See README.md.
 
+mod cloud;
 mod events;
-mod locate;
-mod logtail;
-mod run;
-mod sandbox;
+mod output;
+mod temp;
 mod wrapper;
 
+#[cfg(any(windows, target_os = "macos"))]
+mod locate;
+#[cfg(any(windows, target_os = "macos"))]
+mod logtail;
+#[cfg(any(windows, target_os = "macos"))]
+mod run;
+#[cfg(any(windows, target_os = "macos"))]
+mod sandbox;
+
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
-use run::{Format, OutputFilter, RunOptions, Target, note};
+use output::{EXIT_USAGE, Format, OutputFilter, note};
 
 #[derive(Parser)]
 #[command(
     version,
-    about = "Run Luau scripts in Roblox Studio without showing its window"
+    about = "Run Luau scripts in hidden Roblox Studio, or as Open Cloud Luau Execution tasks"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -27,12 +35,14 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Run a Luau script in hidden Studio and print its output.
+    /// Run a Luau script in hidden Studio (or with --cloud, as an Open Cloud
+    /// Luau Execution task) and print its output.
     Run(RunArgs),
-    /// Write Roblox's API dump as JSON.
+    /// Write Roblox's API dump as JSON. Windows and macOS only.
     ApiDump(ApiDumpArgs),
-    /// Check that Studio can be found and can run a script.
-    Doctor(StudioArg),
+    /// Check that Studio can be found and can run a script (or with --cloud,
+    /// that a task can run).
+    Doctor(DoctorArgs),
     /// Launch hidden Studio with your own arguments and no wrapper. Used by
     /// the behaviour checks in tests/behavior.rs.
     #[command(hide = true)]
@@ -47,30 +57,57 @@ struct StudioArg {
     studio: Option<PathBuf>,
 }
 
+/// Options shared by `run --cloud` and `doctor --cloud`.
+#[derive(Args)]
+struct CloudArgs {
+    /// Run as an Open Cloud Luau Execution task instead of in local Studio.
+    /// Also STUDIO_RUN_HOST=cloud.
+    #[arg(long, visible_alias = "rocale")]
+    cloud: bool,
+
+    /// Environment variable holding the Open Cloud API key [default: ROBLOX_API_KEY].
+    #[arg(long, value_name = "NAME")]
+    api_key_env: Option<String>,
+
+    /// Config file [default: studio-run.toml in this directory or a parent].
+    #[arg(long, value_name = "FILE")]
+    config: Option<PathBuf>,
+}
+
+impl CloudArgs {
+    fn enabled(&self) -> bool {
+        self.cloud
+            || std::env::var("STUDIO_RUN_HOST").is_ok_and(|h| h.eq_ignore_ascii_case("cloud"))
+    }
+}
+
 #[derive(Args)]
 struct RunArgs {
     /// The .lua/.luau script to run.
     script: PathBuf,
 
-    /// Open this .rbxl/.rbxlx place file first (default: an empty baseplate).
-    #[arg(long, conflicts_with = "place_id")]
+    /// Place file to run in (default: an empty baseplate). With --cloud, it's
+    /// uploaded as a new Saved version of the place (needs --allow-upload).
+    #[arg(long)]
     place: Option<PathBuf>,
 
-    /// Open this published place first (needs --universe-id).
-    #[arg(long, requires = "universe_id")]
+    /// Published place to run in (needs --universe-id). With --cloud, the
+    /// place to run on, if not set in studio-run.toml.
+    #[arg(long)]
     place_id: Option<u64>,
 
     /// Universe of --place-id.
-    #[arg(long, requires = "place_id")]
+    #[arg(long)]
     universe_id: Option<u64>,
 
-    /// Seconds before Studio is killed and the run fails (exit code 124).
+    /// Seconds before the run fails (exit code 124). At most 300 with --cloud.
     #[arg(long, default_value_t = 300)]
     timeout: u64,
 
-    /// Seconds to let Studio quit on its own after the script finishes.
-    #[arg(long, default_value_t = 5)]
-    grace: u64,
+    /// Seconds to let Studio quit on its own after the script finishes [default: 5].
+    /// Ignored with --cloud.
+    #[arg(long)]
+    grace: Option<u64>,
 
     /// Output format.
     #[arg(long, value_enum, default_value_t = Format::Text)]
@@ -87,26 +124,49 @@ struct RunArgs {
 
     /// Load required ModuleScripts through studio-run so their output and
     /// errors are attributed to them. Not the real `require`: don't use with
-    /// test runners or other code that has its own module loader.
+    /// test runners or other code that has its own module loader. Local only.
     #[arg(long)]
     trace_modules: bool,
 
-    /// Show Studio's window on your desktop (for debugging).
+    /// Show Studio's window on your desktop (for debugging). Local only.
     #[arg(long)]
     visible: bool,
 
-    /// Keep the generated wrapper and output file, and print where they are.
+    /// Keep the generated wrapper and output (or task script and task), and
+    /// print where they are.
     #[arg(long)]
     keep_temp: bool,
 
     #[command(flatten)]
+    cloud: CloudArgs,
+
+    /// --cloud: run on this existing place version instead of the latest.
+    #[arg(long, value_name = "N", conflicts_with = "place")]
+    place_version: Option<u64>,
+
+    /// --cloud: allow --place to upload a new Saved version to the place.
+    #[arg(long)]
+    allow_upload: bool,
+
+    /// --cloud: seconds allowed for uploading and for the task to start, on
+    /// top of --timeout.
+    #[arg(long, default_value_t = 120, value_name = "S")]
+    queue_timeout: u64,
+
+    /// --cloud: seconds between task status checks.
+    #[arg(long, default_value_t = 2, value_name = "S")]
+    poll_interval: u64,
+
+    #[command(flatten)]
     studio: StudioArg,
 
-    /// Extra arguments passed to Studio as-is.
+    /// Extra arguments passed to Studio as-is. Local only.
     #[arg(last = true)]
     studio_args: Vec<String>,
 }
 
+// Without a local host (Linux), these are parsed but never read.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 #[derive(Args)]
 struct ApiDumpArgs {
     /// Where to write the JSON.
@@ -125,6 +185,24 @@ struct ApiDumpArgs {
 }
 
 #[derive(Args)]
+struct DoctorArgs {
+    #[command(flatten)]
+    cloud: CloudArgs,
+
+    /// --cloud: the place to run a test task on, if not set in studio-run.toml.
+    #[arg(long)]
+    place_id: Option<u64>,
+
+    /// --cloud: universe of --place-id.
+    #[arg(long)]
+    universe_id: Option<u64>,
+
+    #[command(flatten)]
+    studio: StudioArg,
+}
+
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
+#[derive(Args)]
 struct RawArgs {
     /// Seconds before Studio is killed (exit code 124).
     #[arg(long, default_value_t = 120)]
@@ -142,6 +220,7 @@ struct RawArgs {
     studio_args: Vec<String>,
 }
 
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 #[derive(Clone, Copy, ValueEnum)]
 enum ApiKind {
     /// Full API, V2 schema (`--apiV2`).
@@ -156,167 +235,273 @@ fn main() {
     let cli = Cli::parse();
     let code = match cli.command {
         Command::Run(a) => cmd_run(a),
-        Command::ApiDump(a) => cmd_api_dump(a),
-        Command::Doctor(a) => cmd_doctor(a),
-        Command::Raw(a) => cmd_raw(a),
+        Command::ApiDump(a) => local::api_dump(a),
+        Command::Doctor(a) if a.cloud.enabled() => cmd_doctor_cloud(a),
+        Command::Doctor(a) => local::doctor(a.studio),
+        Command::Raw(a) => local::raw(a),
     };
     std::process::exit(code);
 }
 
-fn studio_or_exit(arg: StudioArg) -> Result<PathBuf, i32> {
-    locate::studio_exe(arg.studio).map_err(|e| {
-        note(&e);
-        run::EXIT_TOOL_ERROR
-    })
+fn usage(msg: &str) -> i32 {
+    note(msg);
+    EXIT_USAGE
 }
 
 fn cmd_run(a: RunArgs) -> i32 {
-    let exe = match studio_or_exit(a.studio) {
-        Ok(p) => p,
-        Err(c) => return c,
-    };
     let source = match std::fs::read(&a.script) {
         Ok(s) => s,
-        Err(e) => {
-            note(&format!("couldn't read {}: {e}", a.script.display()));
-            return 2;
-        }
+        Err(e) => return usage(&format!("couldn't read {}: {e}", a.script.display())),
     };
     let chunk_name = a
         .script
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "script.luau".into());
-    let target = match (a.place, a.place_id, a.universe_id) {
-        (Some(p), _, _) => Target::PlaceFile(p),
-        (None, Some(place_id), Some(universe_id)) => Target::Published {
-            place_id,
-            universe_id,
-        },
-        _ => Target::Baseplate,
-    };
-    run::run(&RunOptions {
+    if a.cloud.enabled() {
+        cmd_run_cloud(a, source, chunk_name)
+    } else {
+        local::run(a, source, chunk_name)
+    }
+}
+
+fn cmd_run_cloud(a: RunArgs, source: Vec<u8>, chunk_name: String) -> i32 {
+    if a.visible {
+        return usage("--visible needs local Studio; it can't be used with --cloud");
+    }
+    if !a.studio_args.is_empty() {
+        return usage("extra Studio arguments (after --) can't be used with --cloud");
+    }
+    if a.trace_modules {
+        return usage("--trace-modules isn't supported with --cloud yet");
+    }
+    if a.grace.is_some() {
+        note("--grace is ignored with --cloud");
+    }
+    if a.studio.studio.is_some() && std::env::var_os("STUDIO_EXE").is_none() {
+        note("--studio is ignored with --cloud");
+    }
+    if a.poll_interval == 0 {
+        return usage("--poll-interval must be at least 1");
+    }
+    cloud::run(&cloud::CloudOptions {
         source,
         chunk_name,
-        target,
+        place_file: a.place,
+        place_version: a.place_version,
+        flags: cloud::config::Flags {
+            universe_id: a.universe_id,
+            place_id: a.place_id,
+            api_key_env: a.cloud.api_key_env,
+            allow_upload: a.allow_upload,
+        },
+        config: a.cloud.config,
         timeout: Duration::from_secs(a.timeout),
-        grace: Duration::from_secs(a.grace),
+        queue_timeout: Duration::from_secs(a.queue_timeout),
+        poll_interval: Duration::from_secs(a.poll_interval),
         format: a.format,
         filter: a.output,
         capture_print: !a.no_capture,
-        trace_modules: a.trace_modules,
-        visible: a.visible,
         keep_temp: a.keep_temp,
-        studio_exe: exe,
-        studio_args: a.studio_args,
     })
 }
 
-fn cmd_api_dump(a: ApiDumpArgs) -> i32 {
-    let exe = match studio_or_exit(a.studio) {
-        Ok(p) => p,
-        Err(c) => return c,
-    };
-    let out = match std::path::absolute(&a.out) {
-        Ok(p) => p,
-        Err(e) => {
-            note(&format!("bad output path: {e}"));
-            return 2;
-        }
-    };
-    let _ = std::fs::remove_file(&out);
-    let flag = match a.kind {
-        ApiKind::V2 => "--apiV2",
-        ApiKind::Full => "--fullApi",
-        ApiKind::Luau => "--api",
-    };
-    let studio = match sandbox::Studio::launch(
-        &exe,
-        &[flag.into(), out.to_string_lossy().into_owned()],
-        true,
-    ) {
-        Ok(s) => s,
-        Err(e) => {
+fn cmd_doctor_cloud(a: DoctorArgs) -> i32 {
+    cloud::doctor(&cloud::DoctorOptions {
+        flags: cloud::config::Flags {
+            universe_id: a.universe_id,
+            place_id: a.place_id,
+            api_key_env: a.cloud.api_key_env,
+            allow_upload: false,
+        },
+        config: a.cloud.config,
+    })
+}
+
+/// The local Studio host: Windows and macOS.
+#[cfg(any(windows, target_os = "macos"))]
+mod local {
+    use std::path::PathBuf;
+    use std::time::{Duration, Instant};
+
+    use super::{ApiDumpArgs, ApiKind, RawArgs, RunArgs, StudioArg, usage};
+    use crate::output::{EXIT_TIMEOUT, EXIT_TOOL_ERROR, Format, OutputFilter, note};
+    use crate::run::{self, RunOptions, Target};
+    use crate::{locate, sandbox};
+
+    fn studio_or_exit(arg: StudioArg) -> Result<PathBuf, i32> {
+        locate::studio_exe(arg.studio).map_err(|e| {
             note(&e);
-            return run::EXIT_TOOL_ERROR;
-        }
-    };
-    if !studio.wait((a.timeout * 1000) as u32) {
-        note(&format!("timed out after {}s", a.timeout));
-        studio.kill();
-        return run::EXIT_TIMEOUT;
+            EXIT_TOOL_ERROR
+        })
     }
-    match std::fs::metadata(&out) {
-        Ok(m) if m.len() > 0 => {
-            note(&format!("wrote {} ({} bytes)", out.display(), m.len()));
-            0
+
+    pub fn run(a: RunArgs, source: Vec<u8>, chunk_name: String) -> i32 {
+        if a.place_version.is_some() || a.allow_upload {
+            return usage("--place-version and --allow-upload need --cloud");
         }
-        _ => {
-            note(&format!("Studio exited without writing {}", out.display()));
-            run::EXIT_TOOL_ERROR
+        let target = match (a.place, a.place_id, a.universe_id) {
+            (Some(_), Some(_), _) => {
+                return usage("--place and --place-id can't be used together without --cloud");
+            }
+            (Some(p), None, _) => Target::PlaceFile(p),
+            (None, Some(place_id), Some(universe_id)) => Target::Published {
+                place_id,
+                universe_id,
+            },
+            (None, Some(_), None) | (None, None, Some(_)) => {
+                return usage("--place-id and --universe-id must be given together");
+            }
+            (None, None, None) => Target::Baseplate,
+        };
+        let exe = match studio_or_exit(a.studio) {
+            Ok(p) => p,
+            Err(c) => return c,
+        };
+        run::run(&RunOptions {
+            source,
+            chunk_name,
+            target,
+            timeout: Duration::from_secs(a.timeout),
+            grace: Duration::from_secs(a.grace.unwrap_or(5)),
+            format: a.format,
+            filter: a.output,
+            capture_print: !a.no_capture,
+            trace_modules: a.trace_modules,
+            visible: a.visible,
+            keep_temp: a.keep_temp,
+            studio_exe: exe,
+            studio_args: a.studio_args,
+        })
+    }
+
+    pub fn api_dump(a: ApiDumpArgs) -> i32 {
+        let exe = match studio_or_exit(a.studio) {
+            Ok(p) => p,
+            Err(c) => return c,
+        };
+        let out = match std::path::absolute(&a.out) {
+            Ok(p) => p,
+            Err(e) => return usage(&format!("bad output path: {e}")),
+        };
+        let _ = std::fs::remove_file(&out);
+        let flag = match a.kind {
+            ApiKind::V2 => "--apiV2",
+            ApiKind::Full => "--fullApi",
+            ApiKind::Luau => "--api",
+        };
+        let studio = match sandbox::Studio::launch(
+            &exe,
+            &[flag.into(), out.to_string_lossy().into_owned()],
+            true,
+        ) {
+            Ok(s) => s,
+            Err(e) => {
+                note(&e);
+                return EXIT_TOOL_ERROR;
+            }
+        };
+        if !studio.wait((a.timeout * 1000) as u32) {
+            note(&format!("timed out after {}s", a.timeout));
+            studio.kill();
+            return EXIT_TIMEOUT;
         }
+        match std::fs::metadata(&out) {
+            Ok(m) if m.len() > 0 => {
+                note(&format!("wrote {} ({} bytes)", out.display(), m.len()));
+                0
+            }
+            _ => {
+                note(&format!("Studio exited without writing {}", out.display()));
+                EXIT_TOOL_ERROR
+            }
+        }
+    }
+
+    pub fn doctor(a: StudioArg) -> i32 {
+        let exe = match studio_or_exit(a) {
+            Ok(p) => p,
+            Err(c) => return c,
+        };
+        println!("Studio:   {}", exe.display());
+        println!("Running a test script in hidden Studio...");
+        let started = Instant::now();
+        let code = run::run(&RunOptions {
+            source: b"print(\"studio-run doctor: script ran\")\nreturn true\n".to_vec(),
+            chunk_name: "doctor.luau".into(),
+            target: Target::Baseplate,
+            timeout: Duration::from_secs(120),
+            grace: Duration::from_secs(5),
+            format: Format::Text,
+            filter: OutputFilter::Script,
+            capture_print: true,
+            trace_modules: false,
+            visible: false,
+            keep_temp: false,
+            studio_exe: exe,
+            studio_args: vec![],
+        });
+        let secs = started.elapsed().as_secs_f32();
+        if code == 0 {
+            println!("OK: Studio ran a script without showing a window ({secs:.1}s).");
+        } else {
+            println!("FAILED (exit code {code}) after {secs:.1}s; see the messages above.");
+        }
+        code
+    }
+
+    /// Exit code: Studio's own, or 124 if it was still running at the timeout.
+    pub fn raw(a: RawArgs) -> i32 {
+        let exe = match studio_or_exit(a.studio) {
+            Ok(p) => p,
+            Err(c) => return c,
+        };
+        let started = Instant::now();
+        let studio = match sandbox::Studio::launch(&exe, &a.studio_args, !a.visible) {
+            Ok(s) => s,
+            Err(e) => {
+                note(&e);
+                return EXIT_TOOL_ERROR;
+            }
+        };
+        let secs = || started.elapsed().as_secs_f32();
+        if !studio.wait((a.timeout * 1000) as u32) {
+            note(&format!("Studio was still running after {:.1}s", secs()));
+            for w in studio.windows() {
+                note(&format!("open window: [{}] {}", w.class, w.title));
+            }
+            studio.kill();
+            return EXIT_TIMEOUT;
+        }
+        let code = studio.exit_code().unwrap_or(u32::MAX);
+        note(&format!(
+            "Studio exited with code {code} after {:.1}s",
+            secs()
+        ));
+        code as i32
     }
 }
 
-fn cmd_doctor(a: StudioArg) -> i32 {
-    let exe = match studio_or_exit(a) {
-        Ok(p) => p,
-        Err(c) => return c,
-    };
-    println!("Studio:   {}", exe.display());
-    println!("Running a test script in hidden Studio...");
-    let started = Instant::now();
-    let code = run::run(&RunOptions {
-        source: b"print(\"studio-run doctor: script ran\")\nreturn true\n".to_vec(),
-        chunk_name: "doctor.luau".into(),
-        target: Target::Baseplate,
-        timeout: Duration::from_secs(120),
-        grace: Duration::from_secs(5),
-        format: Format::Text,
-        filter: OutputFilter::Script,
-        capture_print: true,
-        trace_modules: false,
-        visible: false,
-        keep_temp: false,
-        studio_exe: exe,
-        studio_args: vec![],
-    });
-    let secs = started.elapsed().as_secs_f32();
-    if code == 0 {
-        println!("OK: Studio ran a script without showing a window ({secs:.1}s).");
-    } else {
-        println!("FAILED (exit code {code}) after {secs:.1}s; see the messages above.");
-    }
-    code
-}
+/// Elsewhere there's no Studio: everything but --cloud is a usage error.
+#[cfg(not(any(windows, target_os = "macos")))]
+mod local {
+    use super::{ApiDumpArgs, RawArgs, RunArgs, StudioArg, usage};
 
-/// Exit code: Studio's own, or 124 if it was still running at the timeout.
-fn cmd_raw(a: RawArgs) -> i32 {
-    let exe = match studio_or_exit(a.studio) {
-        Ok(p) => p,
-        Err(c) => return c,
-    };
-    let started = Instant::now();
-    let studio = match sandbox::Studio::launch(&exe, &a.studio_args, !a.visible) {
-        Ok(s) => s,
-        Err(e) => {
-            note(&e);
-            return run::EXIT_TOOL_ERROR;
-        }
-    };
-    let secs = || started.elapsed().as_secs_f32();
-    if !studio.wait((a.timeout * 1000) as u32) {
-        note(&format!("Studio was still running after {:.1}s", secs()));
-        for w in studio.windows() {
-            note(&format!("open window: [{}] {}", w.class, w.title));
-        }
-        studio.kill();
-        return run::EXIT_TIMEOUT;
+    const MSG: &str = "local Studio runs need Windows or macOS; use --cloud";
+
+    pub fn run(_: RunArgs, _: Vec<u8>, _: String) -> i32 {
+        usage(MSG)
     }
-    let code = studio.exit_code().unwrap_or(u32::MAX);
-    note(&format!(
-        "Studio exited with code {code} after {:.1}s",
-        secs()
-    ));
-    code as i32
+
+    pub fn api_dump(_: ApiDumpArgs) -> i32 {
+        usage("api-dump needs Studio, which needs Windows or macOS")
+    }
+
+    pub fn doctor(_: StudioArg) -> i32 {
+        usage(MSG)
+    }
+
+    pub fn raw(_: RawArgs) -> i32 {
+        usage("raw needs Studio, which needs Windows or macOS")
+    }
 }

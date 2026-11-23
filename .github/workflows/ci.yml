@@ -29,10 +29,12 @@ jobs:
 
   check:
     name: Clippy and tests (${{ matrix.os }})
+    # Windows and macOS build the local Studio host and the cloud host; Linux
+    # builds the cloud host alone.
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -42,8 +44,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Clippy
         run: cargo clippy --locked --all-targets -- -D warnings
-      # The end-to-end tests in tests/studio.rs are #[ignore]d: they need a
-      # logged-in Roblox Studio, which CI runners don't have. They still compile here.
+      # The end-to-end tests are #[ignore]d: tests/studio.rs needs a logged-in
+      # Roblox Studio, which CI runners don't have, and the real-API cloud tests
+      # need secrets (see cloud.yml, weekly). They still compile here. The
+      # unit tests include tests/cloud_mock.rs: --cloud against a local mock API.
       - name: Unit tests
         run: cargo test --locked
       - name: Release build

@@ -1,7 +1,8 @@
 # Design notes
 
 Why studio-run works the way it does. The Studio behaviour these decisions
-rest on is in [studio-behavior.md](studio-behavior.md).
+rest on is in [studio-behavior.md](studio-behavior.md). The cloud host is
+[at the end](#the-cloud-host---cloud).
 
 ## Hiding Studio
 
@@ -90,3 +91,98 @@ Modules loaded with the real `require` print with the real `print`, so their
 output is `other`. There's no way around that short of loading them ourselves
 (see the module-environment findings): `--trace-modules` does that, and it's
 opt-in because it isn't the real `require`.
+
+## The cloud host (`--cloud`)
+
+`--cloud` runs the script as an Open Cloud Luau Execution task instead, and
+gives back the same events and exit codes. The behaviour these decisions rest
+on is in [cloud-behavior.md](cloud-behavior.md), re-checked by
+`tests/cloud_behavior.rs`. The code is in `src/cloud/`; the event printer and
+exit codes (`src/output.rs`) are shared with the local host.
+
+### A native client, not rocale-cli
+
+studio-run calls the Open Cloud API itself (`src/cloud/api.rs`) rather than
+shelling out to rocale-cli. rocale-cli's output and exit codes aren't
+documented, so mapping them onto studio-run's would be guesswork; studio-run
+needs the exact task request (timeout, binary output) and its result; and it
+avoids a second tool and release cadence. The client only needs to upload a
+place version, create and poll a task, read its logs and download its binary
+output.
+
+### The user's source becomes a ModuleScript
+
+Tasks have no `loadstring`. The cloud wrapper
+([src/cloud/wrapper.luau](../src/cloud/wrapper.luau)) creates a ModuleScript
+named after the file, sets its `Source` to `return function(...) <source>\nend`
+with the source starting on line 1, and requires it. Then it does what the
+local wrapper does with `loadstring`'s result: `setfenv` for `print`/`warn`,
+and `xpcall`.
+
+This beat the alternative, inlining the source into the task script:
+
+- Errors and tracebacks name the user's file and line with no remapping. The
+  only other frames are the wrapper's (`TaskScript:<n>`), which are dropped as
+  the local wrapper drops its `RunScript:` frames.
+- The user's code is its own chunk, so the wrapper's locals aren't in scope
+  for it.
+- A compile error doesn't fail the task. `require` only says the module failed
+  to load, but the real message arrives through `MessageOut`, so the wrapper
+  reports it as a `compile` result, as locally. Otherwise the task would fail
+  with a `TaskScript:` message and no result.
+
+The cost: the source is a function body, so a top-level `export type` is a
+compile error under `--cloud`. Requiring the source verbatim would allow it,
+but a module must return exactly one value and gets no `...`.
+
+### Events come back in the binary output
+
+Task logs can't be read until the task finishes, and keep only the last
+450 KB, dropping the start of a long run. So the wrapper collects its events
+and returns them, as the same `@@studio-run@@{json}` lines, in the task's
+binary output (up to 256 MiB). The result is also returned as the task's
+return value, in case the events are lost. The wrapper prints each event too,
+so a task that times out (whose logs keep the output from before the timeout)
+still yields what it printed. studio-run reads the binary output, falls back
+to the logs, and feeds either to the same parser and printer as a local run.
+In the logs, every engine message also appears unwrapped; those lines are
+ignored, since the wrapper already reported them as `other`.
+
+Output therefore arrives when the task finishes, not while it runs.
+
+### Deadlines, retries, no cancelling
+
+`--timeout` is the task's own timeout: how long the script may run, at most
+300 s. Uploading and waiting for the task to start get `--queue-timeout` on
+top, and studio-run gives up when both have passed (exit 124).
+
+429s and 5xx are retried with backoff, respecting `retry-after`, until that
+deadline. A failed task creation never created a task, so it's safe to
+retry. An upload is retried only on 429, because other failures might have
+created a version.
+
+Tasks can't be cancelled. When studio-run gives up or is interrupted, the
+task runs on until it finishes or reaches its timeout. studio-run says so and
+names the task.
+
+### Uploads are explicit
+
+`--place` uploads the file as a new Saved (unpublished) version, which becomes
+the place's latest: what Studio and Team Create open next, and what tasks
+created without a version run on. So it needs `--allow-upload`, or
+`upload = true` in `studio-run.toml` to mark a place as disposable. Saved
+versions can run tasks, so nothing is ever published. The upload uses the
+legacy place-versions endpoint, because it returns the version number a task
+needs, and `.rbxlx` files have trailing whitespace trimmed first because that
+endpoint rejects XML with a newline after `</roblox>`.
+
+### One checksum file per release
+
+Releases publish a single `SHA256SUMS` rather than a `.sha256` per zip.
+Foreman matches asset names by substring and takes the first match in the
+release's asset list, so `studio-run-…-linux-x86_64.zip.sha256` also matches
+`linux-x86_64`, and Foreman would try to install it if GitHub listed it before
+the zip. Both macOS zips are always shipped, because Foreman's Intel macOS
+keywords end with a bare `macos` and would pick the `aarch64` zip if it were
+the only one. These rules come from reading the Foreman, Rokit and Aftman
+sources.

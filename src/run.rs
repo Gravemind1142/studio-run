@@ -1,36 +1,15 @@
-//! `studio-run run`: wrap a script, run it in hidden Studio, stream its events.
+//! The local host: wrap a script, run it in hidden Studio, stream its events.
 
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
-use crate::events::{self, Assembler, Event};
 use crate::logtail::LogTail;
+use crate::output::{
+    EXIT_TIMEOUT, EXIT_TOOL_ERROR, Format, OutputFilter, Printer, StartInfo, note,
+};
 use crate::sandbox::Studio;
+use crate::temp::TempDir;
 use crate::wrapper::{self, WrapperOptions};
-
-/// Exit code when the run timed out.
-pub const EXIT_TIMEOUT: i32 = 124;
-/// Exit code when Studio couldn't run the script or never reported a result.
-pub const EXIT_TOOL_ERROR: i32 = 125;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-pub enum Format {
-    /// Output as text, like Studio's Output window.
-    Text,
-    /// One JSON event per line on stdout.
-    Jsonl,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-pub enum OutputFilter {
-    /// Only output from the script itself.
-    Script,
-    /// The script's output, plus print/warn/error from anything else.
-    Normal,
-    /// Everything, including Studio's info messages.
-    Verbose,
-}
 
 pub enum Target {
     Baseplate,
@@ -66,16 +45,11 @@ pub fn run(opts: &RunOptions) -> i32 {
 }
 
 fn run_inner(opts: &RunOptions) -> Result<i32, String> {
-    let id = run_id();
-    let dir = std::env::temp_dir().join("studio-run").join(&id);
-    std::fs::create_dir_all(&dir).map_err(|e| format!("couldn't create {}: {e}", dir.display()))?;
-    let _cleanup = TempDir {
-        path: dir.clone(),
-        keep: opts.keep_temp,
-    };
+    let dir = TempDir::create(opts.keep_temp)?;
+    let id = dir.id.clone();
 
-    let wrapper_path = dir.join("wrapper.luau");
-    let output_path = dir.join("output.log");
+    let wrapper_path = dir.path.join("wrapper.luau");
+    let output_path = dir.path.join("output.log");
     let source = wrapper::generate(
         &opts.source,
         &WrapperOptions {
@@ -95,6 +69,10 @@ fn run_inner(opts: &RunOptions) -> Result<i32, String> {
         path_arg(&output_path),
         "--quitAfterExecution".into(),
     ];
+    let mut start = StartInfo {
+        host: "local",
+        ..Default::default()
+    };
     match &opts.target {
         Target::Baseplate => {}
         Target::PlaceFile(p) => {
@@ -108,6 +86,8 @@ fn run_inner(opts: &RunOptions) -> Result<i32, String> {
             place_id,
             universe_id,
         } => {
+            start.place_id = Some(*place_id);
+            start.universe_id = Some(*universe_id);
             args.extend([
                 "--placeId".into(),
                 place_id.to_string(),
@@ -123,12 +103,7 @@ fn run_inner(opts: &RunOptions) -> Result<i32, String> {
     let studio = Studio::launch(&opts.studio_exe, &args, !opts.visible)?;
     let started = Instant::now();
 
-    let mut out = Printer {
-        format: opts.format,
-        filter: opts.filter,
-        asm: Assembler::default(),
-        result: None,
-    };
+    let mut out = Printer::new(opts.format, opts.filter, start);
     let mut result_at: Option<Instant> = None;
     let mut timed_out = false;
     let mut killed_after_result = false;
@@ -171,13 +146,13 @@ fn run_inner(opts: &RunOptions) -> Result<i32, String> {
     out.finish();
 
     if opts.keep_temp {
-        note(&format!("kept temp files in {}", dir.display()));
+        note(&format!("kept temp files in {}", dir.path.display()));
     }
-    if let Some(code) = out.result.as_ref().and_then(|r| r.exit_code) {
+    if let Some(code) = out.exit_code() {
         if killed_after_result && opts.filter == OutputFilter::Verbose {
             note("Studio didn't quit after the script finished; stopped it");
         }
-        return Ok(code as i32);
+        return Ok(code);
     }
     if timed_out {
         return Ok(EXIT_TIMEOUT);
@@ -222,98 +197,6 @@ fn hints(tail: &LogTail) {
     }
 }
 
-struct Printer {
-    format: Format,
-    filter: OutputFilter,
-    asm: Assembler,
-    result: Option<Event>,
-}
-
-impl Printer {
-    fn line(&mut self, line: &str) {
-        match events::parse_line(line) {
-            None => {}
-            Some(Ok(ev)) => {
-                if let Some(ev) = self.asm.push(ev) {
-                    self.event(ev);
-                }
-            }
-            Some(Err(e)) => note(&format!("ignoring malformed event: {e}")),
-        }
-    }
-
-    fn finish(&mut self) {
-        if let Some(ev) = self.asm.finish() {
-            self.event(ev);
-        }
-    }
-
-    fn event(&mut self, ev: Event) {
-        // `result` ends the run; anything after it is Studio shutting down.
-        if self.result.is_some() {
-            return;
-        }
-        match self.format {
-            Format::Jsonl => {
-                let mut stdout = std::io::stdout().lock();
-                let _ = writeln!(stdout, "{}", serde_json::to_string(&ev).unwrap_or_default());
-            }
-            Format::Text => self.text(&ev),
-        }
-        if ev.kind == "result" {
-            self.result = Some(ev);
-        }
-    }
-
-    fn text(&self, ev: &Event) {
-        if ev.kind != "output" {
-            return;
-        }
-        let from_script = ev.source.as_deref() == Some("script");
-        let level = ev.level.as_deref().unwrap_or("print");
-        let show = match self.filter {
-            OutputFilter::Script => from_script,
-            OutputFilter::Normal => from_script || level != "info",
-            OutputFilter::Verbose => true,
-        };
-        if !show {
-            return;
-        }
-        let msg = ev.message.as_deref().unwrap_or("");
-        match level {
-            "warn" => eprintln!("warning: {msg}"),
-            "error" => eprintln!("error: {msg}"),
-            _ => println!("{msg}"),
-        }
-    }
-}
-
-/// Tool messages go to stderr, prefixed, so stdout stays the script's.
-pub fn note(msg: &str) {
-    eprintln!("studio-run: {msg}");
-}
-
 fn path_arg(p: &Path) -> String {
     p.to_string_lossy().into_owned()
-}
-
-fn run_id() -> String {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    format!("run-{}-{:x}", std::process::id(), nanos)
-}
-
-struct TempDir {
-    path: PathBuf,
-    keep: bool,
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        if !self.keep {
-            let _ = std::fs::remove_dir_all(&self.path);
-        }
-    }
 }

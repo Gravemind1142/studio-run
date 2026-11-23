@@ -60,6 +60,21 @@ cargo run -- raw -- --task RunScript --runScriptFile C:\full\path\probe.luau --o
 Once it tells you something studio-run depends on, add a check for it to
 `tests/behavior.rs` and a row to the findings.
 
+## Testing against Open Cloud
+
+`cargo test` already checks `--cloud` against a local mock of the API
+(`tests/cloud_mock.rs`), and CI runs that on every pull request. If you change
+which requests the cloud host makes, or how it reads their responses, update
+those tests to match, and the mock only to what
+[docs/cloud-behavior.md](docs/cloud-behavior.md) says the real API does.
+
+Testing against the real API needs your own test experience and API key, set in a
+gitignored `.env` file (copy `.env.example`). [docs/cloud-testing.md](docs/cloud-testing.md) walks
+through the setup. If your change touches the cloud host (`src/cloud/`), run
+`cargo test --test cloud -- --ignored --test-threads=1` and say in the pull
+request that it passed; if it touches the local host, run `tests/studio.rs` as
+above.
+
 ## Pull requests
 
 - Keep each pull request to one change.
