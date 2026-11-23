@@ -282,29 +282,40 @@ fn capture(c: &Case) -> String {
 }
 
 /// One task script that runs `scripts` in order and returns each one's
-/// binary output, as a JSON array of `{ ok, output }` in the binary output.
+/// binary output, packed in the batch's binary output: for each script, a u8
+/// (1 if it ran without error), a u32 length (little-endian), then its binary
+/// output, or the error message if it failed.
 fn batch_script(scripts: &[String]) -> String {
-    let mut s =
-        String::from("local HttpService = game:GetService(\"HttpService\")\nlocal outputs = {}\n");
+    let mut s = String::from("local outputs = {}\n");
     for (i, script) in scripts.iter().enumerate() {
+        // `...` because the wrapper reads the task's arguments.
         s.push_str(&format!(
             "do\n\
-             local ok, out = pcall(function()\n{script}\nend)\n\
-             outputs[{n}] = if ok then {{ ok = true, output = buffer.tostring(out.BinaryOutput) }} \
-             else {{ ok = false, output = tostring(out) }}\n\
+             local ok, out = pcall(function(...)\n{script}\nend)\n\
+             outputs[{n}] = if ok then {{ ok = 1, data = buffer.tostring(out.BinaryOutput) }} \
+             else {{ ok = 0, data = tostring(out) }}\n\
              end\n",
             n = i + 1
         ));
     }
     s.push_str(
-        "return { BinaryOutput = buffer.fromstring(HttpService:JSONEncode(outputs)), \
-         ReturnValues = { #outputs } }\n",
+        "local size = 0\n\
+         for _, o in outputs do size += 5 + #o.data end\n\
+         local packed = buffer.create(size)\n\
+         local pos = 0\n\
+         for _, o in outputs do\n\
+         \tbuffer.writeu8(packed, pos, o.ok)\n\
+         \tbuffer.writeu32(packed, pos + 1, #o.data)\n\
+         \tbuffer.writestring(packed, pos + 5, o.data)\n\
+         \tpos += 5 + #o.data\n\
+         end\n\
+         return { BinaryOutput = packed, ReturnValues = { #outputs } }\n",
     );
     s
 }
 
-/// Runs the scripts in one real task and returns each one's wrapper output.
-fn run_batch(scripts: &[String]) -> Vec<String> {
+/// Runs the scripts in one real task and returns each one's binary output.
+fn run_batch(scripts: &[String]) -> Vec<Vec<u8>> {
     let task = run_task(
         &batch_script(scripts),
         &TaskOptions {
@@ -318,21 +329,27 @@ fn run_batch(scripts: &[String]) -> Vec<String> {
         "batch task didn't complete: {}",
         task["error"]
     );
-    let outputs: Vec<Value> =
-        serde_json::from_slice(&binary_output(&task)).expect("batch output is JSON");
+    let packed = binary_output(&task);
+    let mut outputs = Vec::new();
+    let mut rest = &packed[..];
+    while !rest.is_empty() {
+        let ok = rest[0] == 1;
+        let len = u32::from_le_bytes(rest[1..5].try_into().unwrap()) as usize;
+        let data = rest[5..5 + len].to_vec();
+        rest = &rest[5 + len..];
+        assert!(
+            ok,
+            "a wrapper failed in the batch: {}",
+            String::from_utf8_lossy(&data)
+        );
+        outputs.push(data);
+    }
     assert_eq!(outputs.len(), scripts.len());
     outputs
-        .into_iter()
-        .map(|o| {
-            let text = o["output"].as_str().unwrap_or("").to_string();
-            assert!(o["ok"] == true, "a wrapper failed in the batch: {text}");
-            text
-        })
-        .collect()
 }
 
 /// studio-run's output for `c`, given what its task wrote to the binary output.
-fn replay(c: &Case, binary: String) -> Output {
+fn replay(c: &Case, binary: Vec<u8>) -> Output {
     let base = Arc::new(OnceLock::<String>::new());
     let b = base.clone();
     let path = "universes/1/places/2/versions/1/luau-execution-sessions/s1/tasks/t1";
@@ -362,7 +379,7 @@ fn replay(c: &Case, binary: String) -> Output {
 /// Runs every case in the cloud, `BATCH` to a task.
 fn run_cloud(cases: &[&Case]) -> Vec<Output> {
     let scripts: Vec<String> = cases.iter().map(|c| capture(c)).collect();
-    let mut binaries = vec![String::new(); cases.len()];
+    let mut binaries = vec![Vec::new(); cases.len()];
     let (alone, batched): (Vec<usize>, Vec<usize>) =
         (0..cases.len()).partition(|&i| cases[i].own_task);
     let mut groups: Vec<Vec<usize>> = batched.chunks(BATCH).map(<[usize]>::to_vec).collect();
