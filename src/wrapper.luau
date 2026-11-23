@@ -7,6 +7,8 @@ local SOURCE = __SR_SOURCE__
 local CHUNK_NAME = __SR_CHUNK__ -- "=name.luau": name used in errors/tracebacks
 local CAPTURE_PRINT = __SR_CAPTURE__
 local TRACE_MODULES = __SR_TRACE__
+-- The script's first vararg (`local ctx = ...`); see README, "Script context".
+local CONTEXT = __SR_CONTEXT__
 
 local PROTOCOL = 1
 -- Built from pieces so Studio's echo of this file never contains it.
@@ -266,7 +268,7 @@ else
 	end
 	local packed = table.pack(xpcall(fn, function(e)
 		return { message = tostring(e), traceback = cleanTraceback(debug.traceback(nil, 2)) }
-	end))
+	end, CONTEXT))
 	if packed[1] then
 		result = { ok = true, exitCode = exitCodeFrom(packed[2]), reason = "returned" }
 	else

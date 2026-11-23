@@ -146,6 +146,21 @@ fn return_value_sets_exit_code() {
 
 #[test]
 #[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
+fn script_gets_its_context() {
+    let o = run_jsonl("context.luau", &["--arg", "name=a=b"]);
+    assert_eq!(o.code, 0);
+    let ctx: Value = serde_json::from_str(&o.script_output("print")[0]).unwrap();
+    assert_eq!(ctx["host"], "cloud");
+    assert_eq!(ctx["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(ctx["args"], serde_json::json!({ "name": "a=b" }));
+    assert_eq!(ctx["place"]["universeId"], cloud_env().universe_id);
+    assert_eq!(ctx["place"]["placeId"], cloud_env().place_id);
+    let start = &o.events()[0];
+    assert_eq!(ctx["place"]["version"], start["placeVersion"]);
+}
+
+#[test]
+#[ignore = "needs an Open Cloud test experience; see docs/cloud-testing.md"]
 fn compile_error_fails() {
     let o = run_jsonl("compile_error.luau", &[]);
     assert_eq!(o.code, 1);
