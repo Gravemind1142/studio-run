@@ -38,7 +38,9 @@ output with a minimal client in `tests/common/cloud.rs`.
 
 | Finding | How we know | Check |
 |---|---|---|
-| **`loadstring` isn't available**: calling it errors with `loadstring() is not available`. `setfenv`/`getfenv` work. | `environment.luau`. | `environment` |
+| **`loadstring` isn't available in our test place**, which has **ServerScriptService.LoadStringEnabled** off (the default): calling it errors with `loadstring() is not available`. `setfenv`/`getfenv` work. | `environment.luau`. | `environment` |
+| **With LoadStringEnabled on, `loadstring` works in a task**, including in ModuleScripts, so jest-roblox can load test files. | Not checked here: our test place keeps the setting off. Seen in another project's Jest tests running as tasks in a place published with it on, 2026-11-23. | — |
+| `debug.loadmodule` isn't available. | jest-roblox falls back to `loadstring` in tasks (same project). | — |
 | `RunService` reports a server that isn't Studio and isn't running: `IsServer` true; `IsClient`, `IsStudio`, `IsEdit`, `IsRunning`, `IsRunMode` false. | `environment.luau`. | `environment` |
 | Plugin APIs aren't available: `plugin` is nil, and `ChangeHistoryService:SetWaypoint` errors with "lacking capability Plugin". `CoreGui` isn't reachable (`GetService` returns nil) and `StudioService` isn't a valid service. | `environment.luau`. | `environment` (plugin, ChangeHistoryService) |
 | `LogService.MessageOut` and `ScriptContext.Error` can be connected to. | `environment.luau`. | `environment` |

@@ -279,6 +279,7 @@ impl Run<'_> {
                 None => self.print_logs(path),
             }
             self.out.finish();
+            self.loadstring_hint();
             if let Some(code) = self.out.exit_code() {
                 return self.write_binary_output(code);
             }
@@ -296,6 +297,7 @@ impl Run<'_> {
         // FAILED or CANCELLED: whatever the script printed is in the logs.
         self.print_logs(path);
         self.out.finish();
+        self.loadstring_hint();
         let code = task["error"]["code"].as_str().unwrap_or("");
         let message = task["error"]["message"].as_str().unwrap_or("");
         if code == "DEADLINE_EXCEEDED" {
@@ -339,6 +341,14 @@ impl Run<'_> {
         }
     }
 
+    /// jest-roblox and other module loaders fall back to `loadstring`, which a
+    /// task only has when the place allows it.
+    fn loadstring_hint(&self) {
+        if self.out.saw_no_loadstring {
+            note(LOADSTRING_HINT);
+        }
+    }
+
     fn print_logs(&mut self, path: &str) {
         match self.client.logs(path, self.deadline()) {
             Ok(lines) => {
@@ -362,6 +372,10 @@ fn redacted(task: &Value) -> String {
     }
     serde_json::to_string_pretty(&t).unwrap_or_default()
 }
+
+const LOADSTRING_HINT: &str = "loadstring isn't available in this place. To allow it, turn on \
+     ServerScriptService > LoadStringEnabled in Studio and publish the place. jest-roblox needs \
+     it under --cloud.";
 
 /// What a task can do, checked by `doctor --cloud`.
 const DOCTOR_SCRIPT: &str = r#"
@@ -459,6 +473,9 @@ pub fn doctor(opts: &DoctorOptions) -> i32 {
                      (see docs/internals/cloud-behavior.md)."
                 );
                 return EXIT_TOOL_ERROR;
+            }
+            if r["loadstring"] != true {
+                println!("Warning:  {LOADSTRING_HINT}");
             }
             println!("OK: ran a task in {secs:.1}s.");
             0

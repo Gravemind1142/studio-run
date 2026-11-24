@@ -10,9 +10,20 @@ end
 local module = Instance.new("ModuleScript")
 module.Source = "return 42"
 
+-- A required module calling loadstring, as jest-roblox's runtime does.
+local loader = Instance.new("ModuleScript")
+loader.Source = "return function() return loadstring('return 1')() end"
+
 print("@@probe@@" .. HttpService:JSONEncode({
 	loadstring = works(function()
 		assert(loadstring("return 1")() == 1)
+	end),
+	moduleLoadstring = works(function()
+		assert(require(loader)() == 1)
+	end),
+	-- Scripts can't even read it: "not a valid member".
+	loadStringEnabledReadable = works(function()
+		return game:GetService("ServerScriptService").LoadStringEnabled
 	end),
 	setfenv = works(function()
 		setfenv(function() end, {})
