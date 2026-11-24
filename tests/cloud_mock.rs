@@ -375,6 +375,28 @@ fn a_timed_out_task_exits_124_with_the_output_from_its_logs() {
 }
 
 #[test]
+fn a_missing_loadstring_gets_a_hint_about_the_place_setting() {
+    let lines = vec![
+        event(json!({ "seq": 1, "kind": "start", "chunk": "jest.luau" })),
+        event(json!({
+            "seq": 2, "kind": "output", "source": "other", "level": "error",
+            "message": "ReplicatedStorage.DevPackages.Jest:12: loadstring() is not available"
+        })),
+        event(
+            json!({ "seq": 3, "kind": "result", "ok": false, "exitCode": 1, "reason": "returned" }),
+        ),
+    ];
+    let mock = failing_mock("SCRIPT_ERROR", "error", lines);
+    let o = run(&mock, &[&script("print_warn.luau")]);
+    assert_eq!(o.code, 1);
+    assert!(o.stderr.contains("LoadStringEnabled"), "{}", o.stderr);
+
+    let mock = happy_mock(7, 0, |_| None);
+    let o = run(&mock, &[&script("print_warn.luau")]);
+    assert!(!o.stderr.contains("LoadStringEnabled"), "{}", o.stderr);
+}
+
+#[test]
 fn a_task_that_fails_without_a_result_is_a_tool_error() {
     let mock = failing_mock("SCRIPT_ERROR", "TaskScript:5: wrapper bug", vec![]);
     let o = run(&mock, &[&script("print_warn.luau"), "--format", "jsonl"]);

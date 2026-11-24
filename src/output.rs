@@ -50,7 +50,13 @@ pub struct Printer {
     /// The script's binary output: from `binary` events locally, or set by
     /// the cloud host from the task's binary output.
     pub binary: Option<Vec<u8>>,
+    /// Whether any event said `loadstring` isn't available, so the cloud host
+    /// can point at the place's LoadStringEnabled.
+    pub saw_no_loadstring: bool,
 }
+
+/// What `loadstring` errors with in a task when the place doesn't allow it.
+const NO_LOADSTRING: &str = "loadstring() is not available";
 
 impl Printer {
     pub fn new(format: Format, filter: OutputFilter, start: StartInfo) -> Printer {
@@ -62,6 +68,7 @@ impl Printer {
             last_seq: 0,
             result: None,
             binary: None,
+            saw_no_loadstring: false,
         }
     }
 
@@ -90,6 +97,13 @@ impl Printer {
             return;
         }
         self.last_seq = self.last_seq.max(ev.seq);
+        if ev
+            .message
+            .as_deref()
+            .is_some_and(|m| m.contains(NO_LOADSTRING))
+        {
+            self.saw_no_loadstring = true;
+        }
         // The script's binary output (local host): not printed.
         if ev.kind == "binary" {
             match crate::binary::base64_decode(ev.message.as_deref().unwrap_or("")) {

@@ -15,6 +15,17 @@ real `print`), so leave `--output` at `normal`, the default. Jest's usual
 entry script ends with `ProcessService:ExitAsync`. That service doesn't exist
 under Studio's CLI, so `return` the result instead.
 
+Jest loads each test file with `debug.loadmodule` if it's available, and
+otherwise with `loadstring`. Neither host has `debug.loadmodule`, so Jest
+uses `loadstring`:
+
+- **Locally** it works as it is. The script runs with command-bar
+  permissions, so modules can use `loadstring` whatever the place's
+  LoadStringEnabled says.
+- **With `--cloud`** the place must have **ServerScriptService →
+  LoadStringEnabled** on (see [Setup](cloud.md#setup)). Otherwise every test
+  file fails with `loadstring() is not available`.
+
 Don't use `--trace-modules` with test runners. They have their own module
 loader.
 

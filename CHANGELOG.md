@@ -6,6 +6,13 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `--cloud` runs that hit `loadstring() is not available` end with a note
+  explaining that the place needs ServerScriptService.LoadStringEnabled on, and
+  `doctor --cloud` warns when it's off. jest-roblox needs it under `--cloud`;
+  the cloud and test-runner guides explain this.
+
 ## [0.2.0] - 2026-11-23
 
 ### Added

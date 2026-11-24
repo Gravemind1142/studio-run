@@ -100,6 +100,7 @@ Scripts run with command-bar permissions.
 |---|---|---|
 | Available: `loadstring`, `setfenv`/`getfenv`, `debug.info`, `debug.traceback`, `LogService.MessageOut`, `ScriptContext.Error`, reading `ModuleScript.Source`. | `capabilities.luau`. | `script_capabilities` |
 | **Not available: `ProcessService`** (so a script can't set Studio's exit code), `debug.loadmodule`, `FileSystemService`. | `capabilities.luau`. | `script_capabilities` |
+| **`loadstring` works inside ModuleScripts the script requires**, with the place's ServerScriptService.LoadStringEnabled at its default (off), so jest-roblox's loader works with no setup. Scripts can't read or set LoadStringEnabled: it's "not a valid member". | `capabilities.luau` (no place). | `script_capabilities` |
 | An error in a thread spawned by a `loadstring` chunk reaches `ScriptContext.Error` with `origin` nil and a stack that names the chunk (`name.luau, line N`). | `script_errors.luau`. | `spawned_thread_errors_reach_script_context` |
 | The globals table that every script's environment falls back to can't be written. | `module_env.luau`. | `module_environments` |
 | `setfenv(0, ...)` before `require` doesn't affect the module: each module gets a fresh environment. | `module_env.luau`. | `module_environments` |

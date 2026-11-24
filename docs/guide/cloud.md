@@ -14,7 +14,11 @@ studio-run run smoke-test.luau --cloud --universe-id <id> --place-id <id>
 
 1. **An experience for the runs.** Tasks use the experience's **real**
    DataStores and other cloud data, so use one that exists only for this, not
-   your game. An empty Baseplate published from Studio is enough.
+   your game. An empty Baseplate published from Studio is enough. If you run
+   jest-roblox, or anything else that loads code with `loadstring`, turn on
+   **ServerScriptService → LoadStringEnabled** in the place before you publish
+   it. A task has `loadstring` only when the place allows it. Local runs don't
+   need this.
 2. **An API key** from the
    [Creator Dashboard](https://create.roblox.com/dashboard/credentials),
    restricted to that experience, with:
@@ -29,7 +33,7 @@ studio-run run smoke-test.luau --cloud --universe-id <id> --place-id <id>
 4. Name the place with `--universe-id` and `--place-id`. In CI, pass them
    from secrets.
 5. Check it: `studio-run doctor --cloud --universe-id <id> --place-id <id>`
-   runs a trivial task.
+   runs a trivial task. It warns if the place doesn't allow `loadstring`.
 
 ## Options
 
@@ -55,7 +59,10 @@ The task is a headless server, not Studio's edit mode. What we found is in
 - **Output arrives when the task finishes**, not while it runs: Roblox only
   makes it available then. With `--output verbose`, text format shows the
   task's progress as `studio-run:` notes.
-- No plugins, no Plugin capability, no `loadstring`. `RunService:IsServer()`
+- No plugins, and no Plugin capability. `loadstring` works only if the place
+  has **LoadStringEnabled** on; otherwise it errors with
+  `loadstring() is not available`, and studio-run adds a note saying how to
+  turn it on. `RunService:IsServer()`
   is true; `IsRunning()` and `IsEdit()` are false. The place's own scripts
   don't run and physics doesn't step.
 - HttpService follows the experience's **Allow HTTP Requests** setting.

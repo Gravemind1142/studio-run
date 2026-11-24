@@ -5,6 +5,9 @@
 -- Assumes Jest and your tests were built into the place (e.g. with Rojo and
 -- Wally). Adjust the two paths below to match your project.
 --
+-- Jest loads test files with loadstring. Locally that just works. Under
+-- --cloud, the published place needs ServerScriptService.LoadStringEnabled on.
+--
 -- Not yet tested against a real jest-roblox project.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

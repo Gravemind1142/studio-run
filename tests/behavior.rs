@@ -378,6 +378,7 @@ fn script_capabilities() {
     let r = probe("capabilities.luau", &[]);
     for available in [
         "loadstring",
+        "moduleLoadstring",
         "setfenv",
         "debugInfo",
         "debugTraceback",
@@ -390,7 +391,12 @@ fn script_capabilities() {
             "{available} is no longer available: {r}"
         );
     }
-    for unavailable in ["processService", "debugLoadmodule", "fileSystemService"] {
+    for unavailable in [
+        "processService",
+        "debugLoadmodule",
+        "fileSystemService",
+        "loadStringEnabledReadable",
+    ] {
         assert_eq!(r[unavailable], false, "{unavailable} is now available: {r}");
     }
 }
