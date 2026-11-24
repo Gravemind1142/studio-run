@@ -6,6 +6,8 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-23
+
 ### Added
 
 - `--cloud` runs that hit `loadstring() is not available` end with a note
@@ -89,6 +91,7 @@ First release.
   installed Studio.
 - Release builds for Windows x86_64, installable with Foreman, Rokit or Aftman.
 
-[Unreleased]: https://github.com/Gravemind1142/studio-run/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Gravemind1142/studio-run/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Gravemind1142/studio-run/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Gravemind1142/studio-run/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Gravemind1142/studio-run/releases/tag/v0.1.0
